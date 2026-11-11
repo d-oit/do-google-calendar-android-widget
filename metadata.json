@@ -1,0 +1,6 @@
+{
+  "name": "Agenda Widget",
+  "description": "Google Calendar home screen agenda widget with scrollable schedule, event tap-to-open, and live sync.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

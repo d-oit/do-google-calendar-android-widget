@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Agenda Widget</string>
+    <string name="widget_description">Displays your upcoming Google Calendar agenda with quick refresh and direct tap-to-open.</string>
+</resources>

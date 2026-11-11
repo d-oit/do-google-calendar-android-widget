@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Calendar card body -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M 32,32 H 76 A 8,8 0 0 1 84,40 V 78 A 8,8 0 0 1 76,86 H 32 A 8,8 0 0 1 24,78 V 40 A 8,8 0 0 1 32,32 Z" />
+    <!-- Calendar header strip -->
+    <path
+        android:fillColor="#EA4335"
+        android:pathData="M 32,32 H 76 A 8,8 0 0 1 84,40 V 46 H 24 V 40 A 8,8 0 0 1 32,32 Z" />
+    <!-- Calendar binder rings -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M 36,26 H 42 V 36 H 36 Z M 66,26 H 72 V 36 H 66 Z" />
+    <!-- Agenda schedule lines -->
+    <path
+        android:fillColor="#1A73E8"
+        android:pathData="M 32,53 H 62 A 2,2 0 0 1 64,55 V 56 A 2,2 0 0 1 62,58 H 32 A 2,2 0 0 1 30,56 V 55 A 2,2 0 0 1 32,53 Z" />
+    <path
+        android:fillColor="#34A853"
+        android:pathData="M 32,63 H 74 A 2,2 0 0 1 76,65 V 66 A 2,2 0 0 1 74,68 H 32 A 2,2 0 0 1 30,66 V 65 A 2,2 0 0 1 32,63 Z" />
+    <path
+        android:fillColor="#FBBC04"
+        android:pathData="M 32,73 H 56 A 2,2 0 0 1 58,75 V 76 A 2,2 0 0 1 56,78 H 32 A 2,2 0 0 1 30,76 V 75 A 2,2 0 0 1 32,73 Z" />
+</vector>

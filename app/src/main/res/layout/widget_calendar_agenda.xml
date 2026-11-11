@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@drawable/widget_bg"
+    android:padding="12dp">
+
+    <!-- Header bar -->
+    <LinearLayout
+        android:id="@+id/widget_header"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingBottom="8dp">
+
+        <ImageView
+            android:id="@+id/widget_app_icon"
+            android:layout_width="22dp"
+            android:layout_height="22dp"
+            android:contentDescription="@string/app_name"
+            android:src="@drawable/ic_widget_calendar" />
+
+        <TextView
+            android:id="@+id/widget_date_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="Upcoming Agenda"
+            android:textColor="#1F1F1F"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <ImageView
+            android:id="@+id/widget_add_btn"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="@drawable/widget_refresh_btn_bg"
+            android:contentDescription="New Event"
+            android:padding="7dp"
+            android:src="@drawable/ic_widget_add" />
+
+        <ImageView
+            android:id="@+id/widget_refresh_btn"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginStart="6dp"
+            android:background="@drawable/widget_refresh_btn_bg"
+            android:contentDescription="Refresh Schedule"
+            android:padding="7dp"
+            android:src="@drawable/ic_widget_refresh" />
+    </LinearLayout>
+
+    <ImageView
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#E0E3E7"
+        android:importantForAccessibility="no"
+        android:contentDescription="@null" />
+
+    <!-- Schedule Collection / Empty View Frame -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:paddingTop="6dp">
+
+        <ListView
+            android:id="@+id/widget_agenda_list"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:divider="@null"
+            android:dividerHeight="6dp"
+            android:scrollbars="none" />
+
+        <LinearLayout
+            android:id="@+id/widget_empty_view"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:padding="16dp"
+            android:visibility="gone">
+
+            <ImageView
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:alpha="0.6"
+                android:contentDescription="Empty calendar"
+                android:src="@drawable/ic_widget_calendar" />
+
+            <TextView
+                android:id="@+id/widget_empty_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:text="No upcoming events"
+                android:textColor="#5F6368"
+                android:textSize="13sp" />
+        </LinearLayout>
+    </FrameLayout>
+</LinearLayout>
