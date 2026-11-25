@@ -2,7 +2,6 @@ package com.example.widget
 
 import android.content.Context
 import android.content.Intent
-import android.graphics.Color
 import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
@@ -11,9 +10,11 @@ import com.example.CalendarApp
 import com.example.R
 import com.example.data.db.AppDatabase
 import com.example.data.model.EventEntity
-import com.example.data.pref.WidgetColorTheme
+import com.example.data.pref.WidgetDensity
 import com.example.data.pref.WidgetPreferencesManager
 import com.example.data.repository.CalendarRepository
+import com.example.util.AppLogger
+import com.example.util.CalendarColorMapper
 
 class CalendarAgendaViewsFactory(
     private val context: Context,
@@ -21,7 +22,10 @@ class CalendarAgendaViewsFactory(
     private val repository: CalendarRepository? = null
 ) : RemoteViewsService.RemoteViewsFactory {
 
-    private val events = mutableListOf<EventEntity>()
+    @Volatile
+    private var events: List<EventEntity> = emptyList()
+
+    private val loadLock = Any()
 
     override fun onCreate() {
         loadEvents()
@@ -32,63 +36,77 @@ class CalendarAgendaViewsFactory(
     }
 
     private fun loadEvents() {
-        events.clear()
-        try {
-            val list = if (repository != null) {
-                repository.getUpcomingEventsSync()
-            } else {
-                try {
-                    CalendarApp.instance.repository.getUpcomingEventsSync()
-                } catch (e: Throwable) {
-                    val db = AppDatabase.getInstance(context)
-                    val threshold = System.currentTimeMillis() - (60 * 60 * 1000)
-                    db.eventDao().getUpcomingEventsSync(threshold)
+        synchronized(loadLock) {
+            try {
+                val prefs = WidgetPreferencesManager.getInstance(context).getPreferences()
+                val now = System.currentTimeMillis()
+                val loaded = if (repository != null) {
+                    repository.getUpcomingEventsSync()
+                } else {
+                    val appRepo = runCatching { CalendarApp.instance.repository }.getOrNull()
+                    if (appRepo != null) {
+                        appRepo.getUpcomingEventsSync()
+                    } else {
+                        val db = AppDatabase.getInstance(context)
+                        val threshold = CalendarRepository.getStartOfTodayMillis(now)
+                        val raw = db.eventDao().getUpcomingEventsSync(threshold)
+                        CalendarRepository.filterEventsForPreferences(raw, prefs, now)
+                    }
                 }
+                events = loaded
+                AppLogger.d(AppLogger.TAG_WIDGET, "RemoteViewsFactory loaded ${loaded.size} event(s)")
+            } catch (e: Exception) {
+                AppLogger.e(AppLogger.TAG_WIDGET, "Failed to load events in CalendarAgendaViewsFactory", e)
+                events = emptyList()
             }
-            events.addAll(list)
-        } catch (e: Throwable) {
-            e.printStackTrace()
         }
     }
 
     override fun onDestroy() {
-        events.clear()
+        events = emptyList()
     }
 
     override fun getCount(): Int = events.size
 
     override fun getViewAt(position: Int): RemoteViews? {
-        if (position < 0 || position >= events.size) return null
-        val event = events[position]
+        val snapshot = events
+        if (position < 0 || position >= snapshot.size) return null
+        val event = snapshot[position]
         val prefs = WidgetPreferencesManager.getInstance(context).getPreferences()
+        val theme = WidgetThemeHelper.resolveColors(context, prefs)
         val rv = RemoteViews(context.packageName, R.layout.widget_agenda_item)
 
-        // Day header chip
+        // Day header chip with theme-matched pill background
         if (event.isFirstOfDay && event.dayHeader.isNotEmpty() && prefs.showDayHeaders) {
-            rv.setViewVisibility(R.id.widget_item_date_header, View.VISIBLE)
+            rv.setViewVisibility(R.id.widget_item_date_header_container, View.VISIBLE)
             rv.setTextViewText(R.id.widget_item_date_header, event.dayHeader)
-            if (prefs.colorTheme == WidgetColorTheme.DARK_SLATE) {
-                rv.setTextColor(R.id.widget_item_date_header, Color.parseColor("#90CAF9"))
-            } else {
-                rv.setTextColor(R.id.widget_item_date_header, Color.parseColor(prefs.colorTheme.primaryHex))
-            }
+            rv.setTextColor(R.id.widget_item_date_header, theme.accentColor)
+            rv.setInt(R.id.widget_item_date_header_bg, "setColorFilter", theme.chipBgColor)
+            rv.setInt(R.id.widget_item_date_header_bg, "setImageAlpha", theme.chipBgAlpha)
         } else {
-            rv.setViewVisibility(R.id.widget_item_date_header, View.GONE)
+            rv.setViewVisibility(R.id.widget_item_date_header_container, View.GONE)
         }
+
+        // Rounded item card surface + border matching theme and opacity
+        rv.setInt(R.id.widget_item_bg_fill, "setColorFilter", theme.itemBgColor)
+        rv.setInt(R.id.widget_item_bg_fill, "setImageAlpha", theme.itemAlpha)
+        rv.setInt(R.id.widget_item_bg_stroke, "setColorFilter", theme.itemBorderColor)
+        rv.setInt(R.id.widget_item_bg_stroke, "setImageAlpha", theme.itemBorderAlpha)
+
+        // Compact vs Regular vs Large padding
+        val padPx = when (prefs.density) {
+            WidgetDensity.COMPACT -> dpToPx(6f)
+            WidgetDensity.REGULAR -> dpToPx(8f)
+            WidgetDensity.LARGE -> dpToPx(11f)
+        }
+        rv.setViewPadding(R.id.widget_item_content, padPx, padPx, padPx, padPx)
 
         // Title and Density Font Scaling
         rv.setTextViewText(R.id.widget_item_title, event.title)
         rv.setTextViewTextSize(R.id.widget_item_title, TypedValue.COMPLEX_UNIT_SP, prefs.density.titleSp)
-
-        if (prefs.colorTheme == WidgetColorTheme.DARK_SLATE) {
-            rv.setTextColor(R.id.widget_item_title, Color.parseColor("#FFFFFF"))
-            rv.setTextColor(R.id.widget_item_location, Color.parseColor("#B0BEC5"))
-            rv.setTextColor(R.id.widget_item_calendar, Color.parseColor("#90CAF9"))
-        } else {
-            rv.setTextColor(R.id.widget_item_title, Color.parseColor("#1F1F1F"))
-            rv.setTextColor(R.id.widget_item_location, Color.parseColor("#5F6368"))
-            rv.setTextColor(R.id.widget_item_calendar, Color.parseColor("#5F6368"))
-        }
+        rv.setTextColor(R.id.widget_item_title, theme.titleColor)
+        rv.setTextColor(R.id.widget_item_location, theme.subtitleColor)
+        rv.setTextColor(R.id.widget_item_calendar, theme.subtitleColor)
 
         // Calendar Name badge
         if (event.calendarId.isNotBlank()) {
@@ -107,14 +125,13 @@ class CalendarAgendaViewsFactory(
         rv.setTextViewText(R.id.widget_item_time, timeString)
         rv.setTextViewTextSize(R.id.widget_item_time, TypedValue.COMPLEX_UNIT_SP, prefs.density.timeSp)
 
-        val eventColorInt = com.example.util.CalendarColorMapper.parseColorInt(
+        val eventColorInt = CalendarColorMapper.parseColorInt(
             event.colorHex,
-            com.example.util.CalendarColorMapper.parseColorInt(prefs.colorTheme.primaryHex)
+            theme.accentColor
         )
-
         rv.setTextColor(R.id.widget_item_time, eventColorInt)
 
-        // Location / Conference link
+        // Location / Conference link (filtered at presentation time)
         if (!event.location.isNullOrBlank() && prefs.showLocations) {
             rv.setViewVisibility(R.id.widget_item_location, View.VISIBLE)
             rv.setTextViewText(R.id.widget_item_location, event.location)
@@ -122,8 +139,8 @@ class CalendarAgendaViewsFactory(
             rv.setViewVisibility(R.id.widget_item_location, View.GONE)
         }
 
-        // Accent color stripe
-        rv.setInt(R.id.widget_item_color_bar, "setBackgroundColor", eventColorInt)
+        // Rounded accent color stripe
+        rv.setInt(R.id.widget_item_color_bar, "setColorFilter", eventColorInt)
 
         // Fill-in Intent for list item click
         val fillInIntent = Intent().apply {
@@ -138,13 +155,22 @@ class CalendarAgendaViewsFactory(
         return rv
     }
 
+    private fun dpToPx(dp: Float): Int {
+        return TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_DIP,
+            dp,
+            context.resources.displayMetrics
+        ).toInt()
+    }
+
     override fun getLoadingView(): RemoteViews? = null
 
     override fun getViewTypeCount(): Int = 1
 
     override fun getItemId(position: Int): Long {
-        return if (position in 0 until events.size) {
-            events[position].id.hashCode().toLong()
+        val snapshot = events
+        return if (position in snapshot.indices) {
+            snapshot[position].id.hashCode().toLong()
         } else {
             position.toLong()
         }

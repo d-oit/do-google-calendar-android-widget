@@ -7,9 +7,15 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.example.data.dao.EventDao
 import com.example.data.db.AppDatabase
+import com.example.data.model.AppError
 import com.example.data.model.EventEntity
+import com.example.data.model.OperationResult
 import com.example.data.repository.CalendarRepository
 import com.example.ui.CalendarViewModel
+import com.example.ui.ErrorAction
+import com.example.ui.UiError
+import com.example.ui.UiEvent
+import com.example.util.AppLogger
 import com.example.widget.CalendarAgendaViewsFactory
 import com.example.widget.CalendarAgendaWidgetProvider
 import com.example.data.pref.WidgetColorTheme
@@ -17,6 +23,7 @@ import com.example.data.pref.WidgetDensity
 import com.example.data.pref.WidgetPreferences
 import com.example.data.pref.WidgetPreferencesManager
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.robolectric.shadows.ShadowLooper
@@ -52,6 +59,7 @@ class CalendarViewportTestHarness {
             .build()
         eventDao = database.eventDao()
         prefsManager = WidgetPreferencesManager.getInstance(context)
+        prefsManager.updatePreferences(WidgetPreferences())
         repository = CalendarRepository(context, eventDao, prefsManager)
         viewModel = CalendarViewModel(repository, prefsManager)
     }
@@ -650,5 +658,400 @@ class CalendarViewportTestHarness {
         // Clean up
         repository.deleteEvent(upcomingEvents[0].id)
         ShadowLooper.idleMainLooper(50, java.util.concurrent.TimeUnit.MILLISECONDS)
+    }
+
+    // =========================================================================
+    // 17. Widget Customization Filtering: Past Events, Horizon & Calendar IDs
+    // =========================================================================
+    @Test
+    fun `CUJ_17_widget_preferences_filtering_enforces_past_horizon_and_calendar_ids`() = runBlocking {
+        val now = System.currentTimeMillis()
+        val startOfToday = CalendarRepository.getStartOfTodayMillis(now)
+
+        // Ensure past event is strictly after startOfToday if possible; otherwise test with synthetic now
+        val refNow = startOfToday + (14 * 3600000L) // 2:00 PM today
+        val pastToday = EventEntity(
+            id = "past_today",
+            calendarId = "Work",
+            sourceCalendarId = 101L,
+            title = "Morning Standup",
+            startMillis = startOfToday + (9 * 3600000L),
+            endMillis = startOfToday + (10 * 3600000L),
+            colorHex = "#1A73E8"
+        )
+        val upcomingToday = EventEntity(
+            id = "upcoming_today",
+            calendarId = "Personal",
+            sourceCalendarId = 102L,
+            title = "Evening Run",
+            startMillis = startOfToday + (18 * 3600000L),
+            endMillis = startOfToday + (19 * 3600000L),
+            colorHex = "#33B679"
+        )
+        val farFuture = EventEntity(
+            id = "far_future",
+            calendarId = "Work",
+            sourceCalendarId = 101L,
+            title = "Quarterly Planning",
+            startMillis = startOfToday + (10L * CalendarRepository.DAY_MILLIS),
+            endMillis = startOfToday + (10L * CalendarRepository.DAY_MILLIS) + 3600000L,
+            colorHex = "#1A73E8"
+        )
+        val allEvents = listOf(pastToday, upcomingToday, farFuture)
+
+        // 1. Default: showPastEvents = false, daysHorizon = 7, all calendars
+        val defaultPrefs = WidgetPreferences(
+            daysHorizon = 7,
+            showPastEvents = false,
+            isAllCalendarsSelected = true
+        )
+        val filteredDefault = CalendarRepository.filterEventsForPreferences(allEvents, defaultPrefs, refNow)
+        assertEquals(1, filteredDefault.size)
+        assertEquals("upcoming_today", filteredDefault[0].id)
+        assertTrue("First visible item of day must recompute isFirstOfDay = true", filteredDefault[0].isFirstOfDay)
+
+        // 2. showPastEvents = true includes pastToday
+        val withPast = CalendarRepository.filterEventsForPreferences(
+            allEvents,
+            defaultPrefs.copy(showPastEvents = true),
+            refNow
+        )
+        assertEquals(2, withPast.size)
+        assertEquals("past_today", withPast[0].id)
+        assertTrue(withPast[0].isFirstOfDay)
+        assertFalse(withPast[1].isFirstOfDay)
+
+        // 3. daysHorizon = 14 includes farFuture
+        val extendedHorizon = CalendarRepository.filterEventsForPreferences(
+            allEvents,
+            defaultPrefs.copy(daysHorizon = 14),
+            refNow
+        )
+        assertEquals(2, extendedHorizon.size)
+        assertEquals("far_future", extendedHorizon[1].id)
+
+        // 4. Custom calendar filtering by numeric sourceCalendarId
+        val workOnly = CalendarRepository.filterEventsForPreferences(
+            allEvents,
+            WidgetPreferences(
+                daysHorizon = 14,
+                showPastEvents = true,
+                isAllCalendarsSelected = false,
+                selectedCalendarIds = setOf(101L)
+            ),
+            refNow
+        )
+        assertEquals(2, workOnly.size)
+        assertTrue(workOnly.all { it.sourceCalendarId == 101L })
+
+        // 5. Empty custom selection returns 0 events
+        val emptySelection = CalendarRepository.filterEventsForPreferences(
+            allEvents,
+            WidgetPreferences(
+                daysHorizon = 14,
+                showPastEvents = true,
+                isAllCalendarsSelected = false,
+                selectedCalendarIds = emptySet()
+            ),
+            refNow
+        )
+        assertTrue(emptySelection.isEmpty())
+    }
+
+    // =========================================================================
+    // 18. Event Editing & Full Property Persistence CUJ
+    // =========================================================================
+    @Test
+    fun `CUJ_18_update_event_persists_changes_and_fields`() = runBlocking<Unit> {
+        val now = System.currentTimeMillis()
+        repository.addEvent(
+            title = "Draft Review",
+            location = "Room 10",
+            startMillis = now + 3600000L,
+            endMillis = now + 7200000L,
+            colorHex = "#1A73E8",
+            description = "Initial draft notes",
+            isAllDay = false
+        )
+
+        val inserted = eventDao.getUpcomingEventsSync(now).firstOrNull { it.title == "Draft Review" }
+        assertNotNull(inserted)
+        assertEquals("Initial draft notes", inserted?.description)
+
+        repository.updateEvent(
+            eventId = inserted!!.id,
+            title = "Final Architecture Review",
+            location = "https://meet.google.com/abc-defg-hij",
+            description = "Updated final agenda",
+            startMillis = now + 7200000L,
+            endMillis = now + 10800000L,
+            isAllDay = true,
+            colorHex = "#8E24AA"
+        )
+
+        val updated = eventDao.getEventById(inserted.id)
+        assertNotNull(updated)
+        assertEquals("Final Architecture Review", updated?.title)
+        assertEquals("https://meet.google.com/abc-defg-hij", updated?.location)
+        assertEquals("Updated final agenda", updated?.description)
+        assertEquals("#8E24AA", updated?.colorHex)
+        assertTrue(updated?.isAllDay == true)
+
+        repository.deleteEvent(inserted.id)
+    }
+
+    // =========================================================================
+    // 19. Widget Theme, Opacity (0-100%) & RemoteViews Inflation Verification
+    // =========================================================================
+    @Test
+    fun `CUJ_19_widget_remoteviews_theme_and_opacity_rendering`() = runBlocking {
+        val now = System.currentTimeMillis()
+        eventDao.insertEvent(
+            EventEntity(
+                id = "theme_e1",
+                calendarId = "Work",
+                sourceCalendarId = 1L,
+                title = "Design Review",
+                location = "Studio B",
+                startMillis = now + 1800000L,
+                endMillis = now + 5400000L,
+                colorHex = "#137333",
+                dayHeader = "TODAY",
+                isFirstOfDay = true
+            )
+        )
+
+        val themesToTest = listOf(
+            WidgetColorTheme.DYNAMIC to 0,
+            WidgetColorTheme.CLASSIC_BLUE to 50,
+            WidgetColorTheme.DARK_SLATE to 80,
+            WidgetColorTheme.EMERALD to 100,
+            WidgetColorTheme.SUNSET to 20
+        )
+
+        val appWidgetManager = AppWidgetManager.getInstance(context)
+        val shadowAppWidgetManager = org.robolectric.Shadows.shadowOf(appWidgetManager)
+        val boundWidgetId = shadowAppWidgetManager.createWidget(
+            CalendarAgendaWidgetProvider::class.java,
+            R.layout.widget_calendar_agenda
+        )
+        val serviceIntent = Intent().apply {
+            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, boundWidgetId)
+        }
+
+        for ((theme, opacity) in themesToTest) {
+            prefsManager.updatePreferences(
+                WidgetPreferences(
+                    opacityPercent = opacity,
+                    colorTheme = theme,
+                    density = WidgetDensity.REGULAR,
+                    daysHorizon = 7,
+                    showLocations = true,
+                    showDayHeaders = true
+                )
+            )
+
+            val resolved = com.example.widget.WidgetThemeHelper.resolveColors(context, prefsManager.getPreferences())
+            val expectedAlpha = ((opacity / 100f) * 255f).toInt().coerceIn(0, 255)
+            assertEquals(expectedAlpha, resolved.rootAlpha)
+
+            // Verify provider updateAppWidget executes cleanly and binds root RemoteViews
+            CalendarAgendaWidgetProvider.updateAppWidget(context, appWidgetManager, boundWidgetId)
+            assertNotNull(shadowAppWidgetManager.getViewFor(boundWidgetId))
+
+            // Verify RemoteViews item applies cleanly without InflateException or ActionException
+            val factory = CalendarAgendaViewsFactory(context, serviceIntent, repository)
+            factory.onCreate()
+            factory.onDataSetChanged()
+            assertEquals(1, factory.count)
+            val rv = factory.getViewAt(0)
+            assertNotNull(rv)
+            val inflated = rv!!.apply(context, null)
+            assertNotNull(inflated)
+        }
+
+        // Also inflate root widget layout directly
+        val rootViews = android.widget.RemoteViews(context.packageName, R.layout.widget_calendar_agenda)
+        assertNotNull(rootViews.apply(context, null))
+
+        eventDao.deleteEventById("theme_e1")
+    }
+
+    // =========================================================================
+    // 20. Widget Header Manual Sync/Refresh Button & Force-Update Pipeline
+    // =========================================================================
+    @Test
+    fun `CUJ_20_widget_header_manual_refresh_force_syncs_from_provider`() = runBlocking {
+        val appWidgetManager = AppWidgetManager.getInstance(context)
+        val shadowAppWidgetManager = org.robolectric.Shadows.shadowOf(appWidgetManager)
+        val boundWidgetId = shadowAppWidgetManager.createWidget(
+            CalendarAgendaWidgetProvider::class.java,
+            R.layout.widget_calendar_agenda
+        )
+
+        // 1. Verify idle state shows refresh icon and hides progress bar
+        CalendarAgendaWidgetProvider.updateAppWidget(
+            context = context,
+            appWidgetManager = appWidgetManager,
+            appWidgetId = boundWidgetId,
+            isSyncing = false
+        )
+        val idleView = shadowAppWidgetManager.getViewFor(boundWidgetId)
+        assertNotNull(idleView)
+        val refreshBtn = idleView.findViewById<android.view.View>(R.id.widget_refresh_btn)
+        val refreshContainer = idleView.findViewById<android.view.View>(R.id.widget_refresh_btn_container)
+        val refreshProgress = idleView.findViewById<android.view.View>(R.id.widget_refresh_progress)
+        assertNotNull(refreshBtn)
+        assertNotNull(refreshContainer)
+        assertNotNull(refreshProgress)
+        assertEquals(android.view.View.VISIBLE, refreshBtn.visibility)
+        assertEquals(android.view.View.GONE, refreshProgress.visibility)
+        assertNotNull(refreshBtn.contentDescription)
+        assertTrue(refreshContainer.hasOnClickListeners())
+        assertTrue(refreshBtn.hasOnClickListeners())
+
+        // 2. Verify syncing state hides refresh icon and displays progress indicator
+        CalendarAgendaWidgetProvider.updateAppWidget(
+            context = context,
+            appWidgetManager = appWidgetManager,
+            appWidgetId = boundWidgetId,
+            isSyncing = true
+        )
+        val syncingView = shadowAppWidgetManager.getViewFor(boundWidgetId)
+        assertEquals(android.view.View.GONE, syncingView.findViewById<android.view.View>(R.id.widget_refresh_btn).visibility)
+        assertEquals(android.view.View.VISIBLE, syncingView.findViewById<android.view.View>(R.id.widget_refresh_progress).visibility)
+
+        // 3. Verify performForceSync calls syncEvents(forceRefresh = true) and restores idle state
+        val initialSyncTime = repository.lastSyncTime.value
+        repository.updatePermissionState(explicitGrant = true)
+        CalendarAgendaWidgetProvider.performForceSync(
+            context = context,
+            forceRefresh = true,
+            repositoryOverride = repository
+        )
+        assertFalse(CalendarAgendaWidgetProvider.isWidgetSyncing)
+        assertFalse(repository.isSyncing.value)
+        assertTrue(repository.lastSyncTime.value >= initialSyncTime)
+
+        val postSyncView = shadowAppWidgetManager.getViewFor(boundWidgetId)
+        assertEquals(android.view.View.VISIBLE, postSyncView.findViewById<android.view.View>(R.id.widget_refresh_btn).visibility)
+        assertEquals(android.view.View.GONE, postSyncView.findViewById<android.view.View>(R.id.widget_refresh_progress).visibility)
+
+        // 4. Verify broadcast receiver handles ACTION_REFRESH_WIDGET cleanly without permission
+        repository.updatePermissionState(explicitGrant = false)
+        val provider = CalendarAgendaWidgetProvider()
+        val refreshIntent = Intent(context, CalendarAgendaWidgetProvider::class.java).apply {
+            action = CalendarAgendaWidgetProvider.ACTION_REFRESH_WIDGET
+            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, boundWidgetId)
+        }
+        provider.onReceive(context, refreshIntent)
+        ShadowLooper.idleMainLooper(50, java.util.concurrent.TimeUnit.MILLISECONDS)
+        assertFalse(CalendarAgendaWidgetProvider.isWidgetSyncing)
+    }
+
+    // =========================================================================
+    // 21. Structured AppLogger & Typed UiError / Snackbar Event Pipeline
+    // =========================================================================
+    @Test
+    fun `CUJ_21_app_logger_and_view_model_ui_error_snackbar_flow`() = runBlocking<Unit> {
+        val capturedLogs = mutableListOf<Triple<AppLogger.Level, String, String>>()
+        AppLogger.testLogSink = { level, tag, msg, _ ->
+            capturedLogs.add(Triple(level, tag, msg))
+        }
+        try {
+            // 1. Verify denied permission yields OperationResult.Failure(PermissionDenied) and logs warning
+            repository.updatePermissionState(explicitGrant = false)
+            val permResult = repository.syncEvents(forceRefresh = true)
+            assertTrue(permResult is OperationResult.Failure)
+            assertTrue((permResult as OperationResult.Failure).error is AppError.PermissionDenied)
+            assertTrue(capturedLogs.any { it.first == AppLogger.Level.WARN && it.second == AppLogger.TAG_REPO })
+
+            // 2. Verify simulated sync error triggers UiError.SyncFailed + UiEvent.ShowSnackbar(RETRY_SYNC)
+            repository.updatePermissionState(explicitGrant = true)
+            repository.setSyncErrorForTesting(AppError.CalendarQueryFailed("Provider unavailable"))
+
+            val nextEventDeferred = async(Dispatchers.Main.immediate) {
+                viewModel.uiEvents.first()
+            }
+            viewModel.onSyncNow()
+            ShadowLooper.idleMainLooper(100, java.util.concurrent.TimeUnit.MILLISECONDS)
+
+            val uiEvent = nextEventDeferred.await()
+            assertTrue(uiEvent is UiEvent.ShowSnackbar)
+            val snackbarEvent = uiEvent as UiEvent.ShowSnackbar
+            assertEquals("Provider unavailable", snackbarEvent.message)
+            assertEquals(ErrorAction.RETRY_SYNC, snackbarEvent.action)
+            assertTrue(snackbarEvent.isError)
+            assertTrue(viewModel.uiState.value.error is UiError.SyncFailed)
+
+            // 3. Verify retry clears error when repository recovers
+            repository.setSyncErrorForTesting(null)
+            viewModel.onSyncNow()
+            ShadowLooper.idleMainLooper(100, java.util.concurrent.TimeUnit.MILLISECONDS)
+            assertEquals(null, viewModel.uiState.value.error)
+        } finally {
+            repository.setSyncErrorForTesting(null)
+            AppLogger.testLogSink = null
+        }
+    }
+
+    // =========================================================================
+    // 22. Atomic Room @Transaction Cache Replacement & Widget Snapshot Safety
+    // =========================================================================
+    @Test
+    fun `CUJ_22_atomic_room_transaction_and_widget_factory_snapshot`() = runBlocking<Unit> {
+        val now = System.currentTimeMillis()
+        val offlineEvent = EventEntity(
+            id = "offline_keep_1",
+            title = "Local Offline Note",
+            startMillis = now + 1800000L,
+            endMillis = now + 3600000L,
+            isOfflineCreated = true,
+            dayHeader = "TODAY"
+        )
+        val oldSynced = EventEntity(
+            id = "dev_old_1",
+            title = "Old Synced Meeting",
+            startMillis = now + 5400000L,
+            endMillis = now + 7200000L,
+            isOfflineCreated = false,
+            dayHeader = "TODAY"
+        )
+        val newSynced = EventEntity(
+            id = "dev_new_2",
+            title = "Fresh Synced Standup",
+            startMillis = now + 5400000L,
+            endMillis = now + 7200000L,
+            isOfflineCreated = false,
+            dayHeader = "TODAY"
+        )
+
+        eventDao.insertEvents(listOf(offlineEvent, oldSynced))
+        assertEquals(2, eventDao.getEventCount())
+
+        // replaceSyncedEvents must preserve offline-created events and replace synced events atomically
+        eventDao.replaceSyncedEvents(listOf(newSynced))
+        val afterSyncedReplace = eventDao.getUpcomingEventsSync(now)
+        assertEquals(2, afterSyncedReplace.size)
+        assertTrue(afterSyncedReplace.any { it.id == "offline_keep_1" })
+        assertTrue(afterSyncedReplace.any { it.id == "dev_new_2" })
+        assertFalse(afterSyncedReplace.any { it.id == "dev_old_1" })
+
+        // Verify RemoteViewsFactory safely loads updated snapshot
+        val serviceIntent = Intent().apply {
+            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, 202)
+        }
+        val factory = CalendarAgendaViewsFactory(context, serviceIntent, repository)
+        factory.onCreate()
+        assertEquals(2, factory.count)
+        assertNotNull(factory.getViewAt(0))
+        assertNotNull(factory.getViewAt(1))
+
+        // replaceAllEvents clears everything and inserts provided list atomically
+        eventDao.replaceAllEvents(listOf(newSynced))
+        assertEquals(1, eventDao.getEventCount())
+        factory.onDataSetChanged()
+        assertEquals(1, factory.count)
+        assertEquals(null, factory.getViewAt(1))
     }
 }

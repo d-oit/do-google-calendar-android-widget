@@ -1,5 +1,7 @@
 package com.example.ui.components
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -27,29 +29,43 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.R
 import com.example.data.model.EventEntity
-import com.example.data.pref.WidgetColorTheme
+import com.example.data.pref.WidgetDensity
 import com.example.data.pref.WidgetPreferences
 import com.example.data.repository.CalendarRepository
+import com.example.util.CalendarColorMapper
+import com.example.widget.WidgetThemeHelper
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WidgetPreviewCard(
     events: List<EventEntity>,
@@ -58,8 +74,17 @@ fun WidgetPreviewCard(
     onRefresh: () -> Unit,
     onPinWidget: () -> Unit,
     onAddEvent: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    lastSyncTime: Long = 0L
 ) {
+    val context = LocalContext.current
+    val resolvedTheme = remember(preferences, context) {
+        WidgetThemeHelper.resolveColors(context, preferences)
+    }
+    val previewEvents = remember(events, preferences) {
+        CalendarRepository.filterEventsForPreferences(events, preferences)
+    }
+
     Card(
         modifier = modifier
             .fillMaxWidth()
@@ -108,7 +133,7 @@ fun WidgetPreviewCard(
                     color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
                 ) {
                     Text(
-                        text = "${preferences.opacityPercent}% Opacity • ${preferences.density.displayName}",
+                        text = "${preferences.opacityPercent}% • ${preferences.density.displayName}",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
@@ -136,25 +161,21 @@ fun WidgetPreviewCard(
                     )
                     .padding(8.dp)
             ) {
-                // Widget Container with dynamic user opacity and theme
-                val isDark = preferences.colorTheme == WidgetColorTheme.DARK_SLATE
-                val alphaFloat = (preferences.opacityPercent / 100f).coerceIn(0.05f, 1f)
-                val baseBgColor = if (isDark) {
-                    Color(0xFF1E1E1E).copy(alpha = alphaFloat)
-                } else {
-                    Color(0xFFF8FAFD).copy(alpha = alphaFloat)
-                }
-
-                val titleColor = if (isDark) Color.White else Color(0xFF1F1F1F)
-                val subtitleColor = if (isDark) Color(0xFFB0BEC5) else Color(0xFF5F6368)
-                val accentColor = Color(android.graphics.Color.parseColor(preferences.colorTheme.primaryHex))
+                val rootAlpha = resolvedTheme.rootAlpha / 255f
+                val rootBgColor = Color(resolvedTheme.rootBgColor).copy(alpha = rootAlpha)
+                val rootBorderColor = Color(resolvedTheme.rootBorderColor).copy(alpha = resolvedTheme.rootBorderAlpha / 255f)
+                val accentColor = Color(resolvedTheme.accentColor)
+                val chipBgColor = Color(resolvedTheme.chipBgColor).copy(alpha = resolvedTheme.chipBgAlpha / 255f)
+                val titleColor = if (preferences.opacityPercent == 0) Color.White else Color(resolvedTheme.titleColor)
+                val subtitleColor = if (preferences.opacityPercent == 0) Color.White.copy(alpha = 0.85f) else Color(resolvedTheme.subtitleColor)
+                val dividerColor = Color(resolvedTheme.dividerColor)
 
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(baseBgColor)
-                        .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(20.dp))
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(rootBgColor)
+                        .border(1.dp, rootBorderColor, RoundedCornerShape(24.dp))
                         .padding(12.dp)
                 ) {
                     Column {
@@ -171,83 +192,177 @@ fun WidgetPreviewCard(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
 
-                            val dateFormat = SimpleDateFormat("EEEE, MMM d", Locale.getDefault())
+                            val dateFormat = remember { SimpleDateFormat("EEEE, MMM d", Locale.getDefault()) }
                             val todayString = dateFormat.format(Date())
+                            val syncStatusLabel = remember(lastSyncTime, isSyncing, context) {
+                                if (isSyncing) {
+                                    context.getString(com.example.R.string.widget_sync_in_progress)
+                                } else {
+                                    CalendarRepository.formatLastSyncIndicator(
+                                        context = context,
+                                        lastSyncMillis = lastSyncTime
+                                    )
+                                }
+                            }
+                            val syncDotColor = when {
+                                isSyncing -> accentColor
+                                lastSyncTime > 0L -> if (resolvedTheme.isDark) Color(0xFF81C995) else Color(0xFF137333)
+                                else -> subtitleColor
+                            }
 
-                            Text(
-                                text = todayString,
-                                color = titleColor,
-                                fontSize = preferences.density.titleSp.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.weight(1f),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = todayString,
+                                    color = titleColor,
+                                    fontSize = preferences.density.titleSp.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    modifier = Modifier.testTag("widget_preview_sync_status")
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(6.dp)
+                                            .clip(CircleShape)
+                                            .background(syncDotColor)
+                                    )
+                                    Text(
+                                        text = syncStatusLabel,
+                                        color = subtitleColor,
+                                        fontSize = (preferences.density.timeSp - 2f).coerceIn(9f, 11f).sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.testTag("widget_preview_sync_time_text")
+                                    )
+                                }
+                            }
 
-                            // Add Event icon on widget
+                            // Add Event icon (48dp touch target around 32dp pill)
                             Box(
                                 modifier = Modifier
-                                    .size(32.dp)
+                                    .size(48.dp)
                                     .clip(CircleShape)
-                                    .background(accentColor.copy(alpha = 0.15f))
                                     .clickable { onAddEvent() }
                                     .testTag("widget_preview_add_button"),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Add,
-                                    contentDescription = "Add Event",
-                                    tint = accentColor,
-                                    modifier = Modifier.size(16.dp)
-                                )
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .clip(CircleShape)
+                                        .background(chipBgColor),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Add,
+                                        contentDescription = "Add Event",
+                                        tint = accentColor,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
                             }
 
-                            Spacer(modifier = Modifier.width(6.dp))
-
-                            // Refresh button on widget
-                            Box(
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .clip(CircleShape)
-                                    .background(accentColor.copy(alpha = 0.15f))
-                                    .clickable { onRefresh() }
-                                    .testTag("widget_preview_refresh_button"),
-                                contentAlignment = Alignment.Center
+                            // Refresh button (48dp touch target around 32dp pill) with sync time tooltip
+                            TooltipBox(
+                                positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                                tooltip = {
+                                    PlainTooltip {
+                                        Text(
+                                            text = if (lastSyncTime > 0L) {
+                                                context.getString(
+                                                    com.example.R.string.widget_sync_tooltip_at,
+                                                    CalendarRepository.formatLastSyncIndicator(
+                                                        context = context,
+                                                        lastSyncMillis = lastSyncTime,
+                                                        compact = true
+                                                    )
+                                                )
+                                            } else {
+                                                context.getString(com.example.R.string.widget_sync_tooltip_never)
+                                            }
+                                        )
+                                    }
+                                },
+                                state = rememberTooltipState()
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Refresh,
-                                    contentDescription = "Refresh Widget",
-                                    tint = accentColor,
-                                    modifier = Modifier.size(16.dp)
-                                )
+                                Box(
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(CircleShape)
+                                        .clickable(enabled = !isSyncing) { onRefresh() }
+                                        .testTag("widget_preview_refresh_button"),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(32.dp)
+                                            .clip(CircleShape)
+                                            .background(chipBgColor),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        if (isSyncing) {
+                                            androidx.compose.material3.CircularProgressIndicator(
+                                                modifier = Modifier
+                                                    .size(16.dp)
+                                                    .testTag("widget_preview_refresh_progress"),
+                                                color = accentColor,
+                                                strokeWidth = 2.dp
+                                            )
+                                        } else {
+                                            Icon(
+                                                imageVector = Icons.Default.Refresh,
+                                                contentDescription = syncStatusLabel,
+                                                tint = accentColor,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(1.dp)
-                                .background(if (isDark) Color(0xFF333333) else Color(0xFFE0E3E7))
+                                .background(dividerColor)
                         )
                         Spacer(modifier = Modifier.height(8.dp))
 
                         // Widget Agenda List
-                        if (events.isEmpty()) {
+                        if (previewEvents.isEmpty()) {
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(110.dp),
+                                    .heightIn(min = 148.dp)
+                                    .padding(vertical = 10.dp),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Icon(
-                                        imageVector = Icons.Default.CalendarToday,
-                                        contentDescription = null,
-                                        tint = subtitleColor.copy(alpha = 0.7f),
-                                        modifier = Modifier.size(28.dp)
-                                    )
-                                    Spacer(modifier = Modifier.height(4.dp))
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Surface(
+                                        shape = RoundedCornerShape(16.dp),
+                                        border = BorderStroke(
+                                            1.dp,
+                                            Color(resolvedTheme.itemBorderColor).copy(alpha = 0.6f)
+                                        ),
+                                        modifier = Modifier
+                                            .size(width = 112.dp, height = 84.dp)
+                                            .testTag("widget_preview_empty_illustration")
+                                    ) {
+                                        Image(
+                                            painter = painterResource(id = R.drawable.img_empty_calendar),
+                                            contentDescription = stringResource(R.string.empty_calendar_illustration_desc),
+                                            contentScale = ContentScale.Crop
+                                        )
+                                    }
                                     Text(
                                         text = "No upcoming events",
                                         color = subtitleColor,
@@ -257,51 +372,48 @@ fun WidgetPreviewCard(
                                 }
                             }
                         } else {
+                            val itemPad = when (preferences.density) {
+                                WidgetDensity.COMPACT -> 6.dp
+                                WidgetDensity.REGULAR -> 8.dp
+                                WidgetDensity.LARGE -> 11.dp
+                            }
+                            val itemBgColor = Color(resolvedTheme.itemBgColor).copy(alpha = resolvedTheme.itemAlpha / 255f)
+                            val itemBorderColor = Color(resolvedTheme.itemBorderColor).copy(alpha = resolvedTheme.itemBorderAlpha / 255f)
+
                             LazyColumn(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .heightIn(max = 240.dp),
                                 verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                items(events.take(preferences.daysHorizon * 2), key = { it.id }) { event ->
+                                items(previewEvents, key = { it.id }) { event ->
                                     Column {
                                         if (event.isFirstOfDay && event.dayHeader.isNotEmpty() && preferences.showDayHeaders) {
-                                             Surface(
-                                                shape = RoundedCornerShape(6.dp),
-                                                color = accentColor.copy(alpha = 0.15f),
-                                                modifier = Modifier.padding(bottom = 3.dp, top = 2.dp)
+                                            Surface(
+                                                shape = RoundedCornerShape(8.dp),
+                                                color = chipBgColor,
+                                                modifier = Modifier.padding(bottom = 4.dp, top = 2.dp)
                                             ) {
                                                 Text(
                                                     text = event.dayHeader,
                                                     color = accentColor,
                                                     fontSize = 10.sp,
                                                     fontWeight = FontWeight.Bold,
-                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                                                 )
                                             }
-                                        }
-
-                                        // Item row inside widget
-                                        val itemBgColor = if (isDark) {
-                                            Color(0xFF2C2C2C).copy(alpha = alphaFloat)
-                                        } else {
-                                            Color.White.copy(alpha = alphaFloat)
                                         }
 
                                         Row(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .clip(RoundedCornerShape(12.dp))
+                                                .clip(RoundedCornerShape(14.dp))
                                                 .background(itemBgColor)
-                                                .border(
-                                                    1.dp,
-                                                    if (isDark) Color(0xFF3D3D3D) else Color(0xFFECEFF1),
-                                                    RoundedCornerShape(12.dp)
-                                                )
-                                                .padding(horizontal = 10.dp, vertical = if (preferences.density.id == "compact") 6.dp else 8.dp),
+                                                .border(1.dp, itemBorderColor, RoundedCornerShape(14.dp))
+                                                .padding(itemPad),
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            val barColor = com.example.util.CalendarColorMapper.parseColorHex(
+                                            val barColor = CalendarColorMapper.parseColorHex(
                                                 event.colorHex,
                                                 preferences.colorTheme.primaryHex
                                             )
@@ -309,8 +421,8 @@ fun WidgetPreviewCard(
                                             Box(
                                                 modifier = Modifier
                                                     .width(4.dp)
-                                                    .height(26.dp)
-                                                    .clip(RoundedCornerShape(2.dp))
+                                                    .height(28.dp)
+                                                    .clip(RoundedCornerShape(3.dp))
                                                     .background(barColor)
                                             )
 
@@ -328,7 +440,7 @@ fun WidgetPreviewCard(
                                                 if (event.calendarId.isNotBlank()) {
                                                     Text(
                                                         text = event.calendarId,
-                                                        color = barColor,
+                                                        color = subtitleColor,
                                                         fontSize = (preferences.density.timeSp - 2).coerceAtLeast(9f).sp,
                                                         fontWeight = FontWeight.Medium,
                                                         maxLines = 1,
@@ -374,6 +486,7 @@ fun WidgetPreviewCard(
                 onClick = onPinWidget,
                 modifier = Modifier
                     .fillMaxWidth()
+                    .heightIn(min = 48.dp)
                     .testTag("pin_widget_button"),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.primary

@@ -1,12 +1,17 @@
 package com.example
 
 import android.Manifest
+import android.appwidget.AppWidgetManager
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -15,6 +20,8 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -27,30 +34,24 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Sync
-import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.ViewAgenda
 import androidx.compose.material.icons.filled.Widgets
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -60,6 +61,11 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
@@ -67,39 +73,49 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.data.db.AppDatabase
 import com.example.data.model.EventEntity
+import com.example.data.pref.WidgetPreferencesManager
 import com.example.data.repository.CalendarRepository
+import com.example.data.repository.CalendarSyncDiagnosticsHelper
 import com.example.ui.CalendarUiState
 import com.example.ui.CalendarViewModel
+import com.example.ui.ErrorAction
+import com.example.ui.UiEvent
 import com.example.ui.components.AddEventDialog
 import com.example.ui.components.CalendarPermissionRequestCard
 import com.example.ui.components.EventDetailDialog
-import com.example.ui.components.EventItemCard
 import com.example.ui.components.EventListLazyColumn
-import com.example.ui.components.FriendlyEmptyEventsState
+import com.example.ui.components.SyncDiagnosticsBottomSheet
 import com.example.ui.components.WidgetCustomizerControls
 import com.example.ui.components.WidgetPreviewCard
 import com.example.ui.components.rememberCalendarPermissionLauncher
 import com.example.ui.theme.MyApplicationTheme
+import com.example.util.AppLogger
 import com.example.widget.CalendarAgendaWidgetProvider
-import kotlinx.coroutines.launch
+import com.example.worker.CalendarSyncScheduler
 
 class MainActivity : ComponentActivity() {
 
@@ -110,9 +126,9 @@ class MainActivity : ComponentActivity() {
                 val app = applicationContext as? CalendarApp
                 val repo = app?.repository ?: CalendarRepository(
                     applicationContext,
-                    com.example.data.db.AppDatabase.getInstance(applicationContext).eventDao()
+                    AppDatabase.getInstance(applicationContext).eventDao()
                 )
-                val prefs = app?.preferencesManager ?: com.example.data.pref.WidgetPreferencesManager.getInstance(applicationContext)
+                val prefs = app?.preferencesManager ?: WidgetPreferencesManager.getInstance(applicationContext)
                 return CalendarViewModel(repo, prefs) as T
             }
         }
@@ -122,79 +138,85 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        handleIntentExtras()
+        val initialTab = handleIntentExtras(intent)
 
         if (!isRunningInTestEnvironment()) {
             setContent {
                 MyApplicationTheme {
-                    CalendarMainScreen(viewModel = viewModel)
+                    CalendarMainScreen(
+                        viewModel = viewModel,
+                        initialTab = initialTab
+                    )
                 }
             }
         }
     }
 
-    private fun handleIntentExtras() {
-        if (intent.getBooleanExtra("OPEN_ADD_EVENT", false)) {
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIntentExtras(intent)
+    }
+
+    private fun handleIntentExtras(incomingIntent: Intent?): Int {
+        if (incomingIntent == null) return 0
+
+        if (incomingIntent.getBooleanExtra("OPEN_ADD_EVENT", false)) {
             viewModel.openAddEventDialog()
         }
-        val eventId = intent.getStringExtra(CalendarAgendaWidgetProvider.EXTRA_EVENT_ID)
+
+        val eventId = incomingIntent.getStringExtra(CalendarAgendaWidgetProvider.EXTRA_EVENT_ID)
         if (!eventId.isNullOrEmpty()) {
-            val event = viewModel.uiState.value.events.find { it.id == eventId }
-            if (event != null) {
-                viewModel.selectEvent(event)
-            }
+            viewModel.openEventById(eventId)
         }
+
+        val appWidgetId = incomingIntent.getIntExtra(
+            AppWidgetManager.EXTRA_APPWIDGET_ID,
+            AppWidgetManager.INVALID_APPWIDGET_ID
+        )
+        if (incomingIntent.action == AppWidgetManager.ACTION_APPWIDGET_CONFIGURE &&
+            appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID
+        ) {
+            val resultValue = Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+            setResult(RESULT_OK, resultValue)
+            return 1
+        }
+        return 0
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CalendarMainScreen(
-    viewModel: CalendarViewModel
+    viewModel: CalendarViewModel,
+    initialTab: Int = 0
 ) {
     val context = LocalContext.current
-    val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
+    val lifecycleOwner = LocalLifecycleOwner.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    var selectedTab by remember { mutableIntStateOf(0) }
-
-    val handleGoogleSignIn: () -> Unit = {
-        coroutineScope.launch {
-            try {
-                val credentialManager = androidx.credentials.CredentialManager.create(context)
-                val googleIdOption = com.google.android.libraries.identity.googleid.GetGoogleIdOption.Builder()
-                    .setFilterByAuthorizedAccounts(false)
-                    .setServerClientId("667310255229-9shoocqfrpvprl1ec0rftqabo3uect8p.apps.googleusercontent.com")
-                    .setAutoSelectEnabled(false)
-                    .build()
-
-                val request = androidx.credentials.GetCredentialRequest.Builder()
-                    .addCredentialOption(googleIdOption)
-                    .build()
-
-                val result = credentialManager.getCredential(context, request)
-                val credential = result.credential
-                if (credential is androidx.credentials.CustomCredential &&
-                    credential.type == com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
-                ) {
-                    val googleIdTokenCredential = com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.createFrom(credential.data)
-                    android.widget.Toast.makeText(context, "Connected as ${googleIdTokenCredential.id}", android.widget.Toast.LENGTH_SHORT).show()
-                    viewModel.onPermissionResult(true)
-                }
-            } catch (_: Exception) {
-                android.widget.Toast.makeText(
-                    context,
-                    "In this emulator, please grant calendar permission or add account in Android Settings.",
-                    android.widget.Toast.LENGTH_LONG
-                ).show()
-            }
-        }
-    }
+    var selectedTab by remember(initialTab) { mutableIntStateOf(initialTab) }
+    val snackbarHostState = remember { SnackbarHostState() }
 
     val calendarPermissionLauncher = rememberCalendarPermissionLauncher { isGranted ->
         viewModel.onPermissionResult(isGranted)
+        if (isGranted) {
+            CalendarSyncScheduler.schedulePeriodicSync(context)
+        }
     }
 
-    androidx.compose.runtime.LaunchedEffect(Unit) {
+    DisposableEffect(lifecycleOwner, viewModel) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME && !isRunningInTestEnvironment()) {
+                viewModel.onLifecycleResume()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    LaunchedEffect(Unit) {
         if (!uiState.hasCalendarPermission && !isRunningInTestEnvironment()) {
             calendarPermissionLauncher.launch(
                 arrayOf(
@@ -202,6 +224,29 @@ fun CalendarMainScreen(
                     Manifest.permission.WRITE_CALENDAR
                 )
             )
+        }
+    }
+
+    LaunchedEffect(viewModel) {
+        viewModel.uiEvents.collect { event ->
+            when (event) {
+                is UiEvent.ShowSnackbar -> {
+                    val result = snackbarHostState.showSnackbar(
+                        message = event.message,
+                        actionLabel = event.actionLabel,
+                        withDismissAction = true,
+                        duration = if (event.isError) SnackbarDuration.Long else SnackbarDuration.Short
+                    )
+                    if (result == SnackbarResult.ActionPerformed) {
+                        when (event.action) {
+                            ErrorAction.RETRY_SYNC -> viewModel.onSyncNow()
+                            ErrorAction.OPEN_SETTINGS -> openAppPermissionSettings(context)
+                            ErrorAction.NONE -> Unit
+                        }
+                    }
+                    viewModel.dismissError()
+                }
+            }
         }
     }
 
@@ -223,8 +268,36 @@ fun CalendarMainScreen(
 
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        snackbarHost = {
+            SnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier
+                    .navigationBarsPadding()
+                    .testTag("main_snackbar_host")
+            ) { snackbarData ->
+                Snackbar(
+                    snackbarData = snackbarData,
+                    containerColor = if (uiState.error != null) {
+                        MaterialTheme.colorScheme.errorContainer
+                    } else {
+                        MaterialTheme.colorScheme.inverseSurface
+                    },
+                    contentColor = if (uiState.error != null) {
+                        MaterialTheme.colorScheme.onErrorContainer
+                    } else {
+                        MaterialTheme.colorScheme.inverseOnSurface
+                    },
+                    actionColor = if (uiState.error != null) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.inversePrimary
+                    }
+                )
+            }
+        },
         topBar = {
             TopAppBar(
+                modifier = Modifier.statusBarsPadding(),
                 title = {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -244,9 +317,15 @@ fun CalendarMainScreen(
                                 )
                             }
                         }
-                        Column {
+                        Column(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { viewModel.openDiagnosticsSheet() }
+                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                                .testTag("topbar_account_status_button")
+                        ) {
                             Text(
-                                text = "Google Calendar",
+                                text = stringResource(R.string.title_google_calendar),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold
                             )
@@ -256,15 +335,20 @@ fun CalendarMainScreen(
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.CheckCircle,
-                                    contentDescription = "Connected",
-                                    tint = if (uiState.hasCalendarPermission && uiState.availableCalendars.isNotEmpty()) Color(0xFF34A853) else Color(0xFFFBBC04),
+                                    contentDescription = if (uiState.hasCalendarPermission) "Connected" else "Permission needed",
+                                    tint = if (uiState.hasCalendarPermission && uiState.availableCalendars.isNotEmpty()) {
+                                        MaterialTheme.colorScheme.tertiary
+                                    } else {
+                                        MaterialTheme.colorScheme.secondary
+                                    },
                                     modifier = Modifier.size(12.dp)
                                 )
                                 Text(
                                     text = when {
-                                        !uiState.hasCalendarPermission -> "Tap to connect Google Calendar"
-                                        uiState.availableCalendars.isNotEmpty() -> uiState.syncedAccountName ?: "${uiState.availableCalendars.size} Calendars Synced"
-                                        else -> "Local Device Calendar"
+                                        !uiState.hasCalendarPermission -> stringResource(R.string.status_tap_to_connect)
+                                        uiState.availableCalendars.isNotEmpty() -> uiState.syncedAccountName
+                                            ?: "${uiState.availableCalendars.size} Calendars Synced"
+                                        else -> stringResource(R.string.status_local_calendar)
                                     },
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -277,13 +361,24 @@ fun CalendarMainScreen(
                 },
                 actions = {
                     IconButton(
+                        onClick = { viewModel.openDiagnosticsSheet() },
+                        modifier = Modifier.testTag("topbar_diagnostics_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Build,
+                            contentDescription = stringResource(R.string.diagnostics_open_desc),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                    IconButton(
                         onClick = { viewModel.onSyncNow() },
                         enabled = !uiState.isSyncing,
                         modifier = Modifier.testTag("topbar_sync_button")
                     ) {
                         Icon(
                             imageVector = Icons.Default.Refresh,
-                            contentDescription = "Sync with Google Calendar",
+                            contentDescription = stringResource(R.string.action_sync_calendar),
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier
                                 .size(24.dp)
@@ -302,11 +397,13 @@ fun CalendarMainScreen(
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary,
                 shape = CircleShape,
-                modifier = Modifier.testTag("add_event_fab")
+                modifier = Modifier
+                    .navigationBarsPadding()
+                    .testTag("add_event_fab")
             ) {
                 Icon(
                     imageVector = Icons.Default.Add,
-                    contentDescription = "Add Event"
+                    contentDescription = stringResource(R.string.action_add_event)
                 )
             }
         }
@@ -320,7 +417,6 @@ fun CalendarMainScreen(
             val isWideScreen = maxWidth >= 600.dp
 
             if (isWideScreen) {
-                // Wide Screen: Foldable unfolded & Tablets (>=600dp) -> Dual Pane Layout
                 Row(
                     modifier = Modifier
                         .fillMaxSize()
@@ -328,7 +424,6 @@ fun CalendarMainScreen(
                         .testTag("dual_pane_container"),
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // Left Pane: Live Widget Preview + Status
                     LazyColumn(
                         modifier = Modifier
                             .weight(1f)
@@ -339,7 +434,7 @@ fun CalendarMainScreen(
                         item {
                             CalendarPermissionRequestCard(
                                 hasCalendarPermission = uiState.hasCalendarPermission,
-                                syncedAccount = uiState.syncedAccountName ?: "Google Calendar",
+                                syncedAccount = uiState.syncedAccountName ?: stringResource(R.string.title_google_calendar),
                                 onRequestPermission = {
                                     calendarPermissionLauncher.launch(
                                         arrayOf(
@@ -348,8 +443,7 @@ fun CalendarMainScreen(
                                         )
                                     )
                                 },
-                                onSync = { viewModel.onSyncNow() },
-                                onGoogleSignIn = handleGoogleSignIn
+                                onSync = { viewModel.onSyncNow() }
                             )
                         }
 
@@ -358,6 +452,7 @@ fun CalendarMainScreen(
                                 events = uiState.events,
                                 preferences = uiState.widgetPreferences,
                                 isSyncing = uiState.isSyncing,
+                                lastSyncTime = uiState.lastSyncTime,
                                 onRefresh = { viewModel.onSyncNow() },
                                 onPinWidget = { viewModel.pinWidgetToHomeScreen(context) },
                                 onAddEvent = { viewModel.openAddEventDialog() }
@@ -365,7 +460,6 @@ fun CalendarMainScreen(
                         }
                     }
 
-                    // Right Pane: Customizer Controls + Agenda List
                     Column(
                         modifier = Modifier
                             .weight(1.2f)
@@ -387,12 +481,13 @@ fun CalendarMainScreen(
                             onDeleteEvent = { viewModel.deleteEvent(it) },
                             onOpenAddEvent = { viewModel.openAddEventDialog() },
                             onSyncNow = { viewModel.onSyncNow() },
+                            onOpenDiagnostics = { viewModel.openDiagnosticsSheet() },
+                            onExpandFiltersQuickFix = { viewModel.applyFilterQuickFix() },
                             modifier = Modifier.weight(1f)
                         )
                     }
                 }
             } else {
-                // Compact Screen: Phones (<600dp) -> Tabbed Navigation
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -406,14 +501,14 @@ fun CalendarMainScreen(
                         Tab(
                             selected = selectedTab == 0,
                             onClick = { selectedTab = 0 },
-                            text = { Text("Agenda (${uiState.events.size})", fontWeight = FontWeight.SemiBold) },
+                            text = { Text("${stringResource(R.string.tab_agenda)} (${uiState.events.size})", fontWeight = FontWeight.SemiBold) },
                             icon = { Icon(Icons.Default.ViewAgenda, contentDescription = null, modifier = Modifier.size(18.dp)) },
                             modifier = Modifier.testTag("tab_agenda")
                         )
                         Tab(
                             selected = selectedTab == 1,
                             onClick = { selectedTab = 1 },
-                            text = { Text("Widget Setup", fontWeight = FontWeight.SemiBold) },
+                            text = { Text(stringResource(R.string.tab_widget_setup), fontWeight = FontWeight.SemiBold) },
                             icon = { Icon(Icons.Default.Widgets, contentDescription = null, modifier = Modifier.size(18.dp)) },
                             modifier = Modifier.testTag("tab_widget")
                         )
@@ -429,7 +524,7 @@ fun CalendarMainScreen(
                                 Spacer(modifier = Modifier.height(12.dp))
                                 CalendarPermissionRequestCard(
                                     hasCalendarPermission = uiState.hasCalendarPermission,
-                                    syncedAccount = uiState.syncedAccountName ?: "Google Calendar",
+                                    syncedAccount = uiState.syncedAccountName ?: stringResource(R.string.title_google_calendar),
                                     onRequestPermission = {
                                         calendarPermissionLauncher.launch(
                                             arrayOf(
@@ -438,8 +533,7 @@ fun CalendarMainScreen(
                                             )
                                         )
                                     },
-                                    onSync = { viewModel.onSyncNow() },
-                                    onGoogleSignIn = handleGoogleSignIn
+                                    onSync = { viewModel.onSyncNow() }
                                 )
                             }
                             AgendaScheduleContent(
@@ -450,6 +544,8 @@ fun CalendarMainScreen(
                                 onDeleteEvent = { viewModel.deleteEvent(it) },
                                 onOpenAddEvent = { viewModel.openAddEventDialog() },
                                 onSyncNow = { viewModel.onSyncNow() },
+                                onOpenDiagnostics = { viewModel.openDiagnosticsSheet() },
+                                onExpandFiltersQuickFix = { viewModel.applyFilterQuickFix() },
                                 modifier = Modifier.weight(1f)
                             )
                         }
@@ -458,7 +554,7 @@ fun CalendarMainScreen(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .padding(horizontal = 16.dp),
-                            contentPadding = PaddingValues(vertical = 16.dp),
+                            contentPadding = PaddingValues(top = 16.dp, bottom = 96.dp),
                             verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
                             item {
@@ -466,6 +562,7 @@ fun CalendarMainScreen(
                                     events = uiState.events,
                                     preferences = uiState.widgetPreferences,
                                     isSyncing = uiState.isSyncing,
+                                    lastSyncTime = uiState.lastSyncTime,
                                     onRefresh = { viewModel.onSyncNow() },
                                     onPinWidget = { viewModel.pinWidgetToHomeScreen(context) },
                                     onAddEvent = { viewModel.openAddEventDialog() }
@@ -484,7 +581,6 @@ fun CalendarMainScreen(
                 }
             }
 
-            // Centered CircularProgressIndicator that displays while CalendarRepository is actively fetching data
             if (uiState.isSyncing || uiState.isFetching) {
                 Box(
                     modifier = Modifier
@@ -517,12 +613,38 @@ fun CalendarMainScreen(
         }
     }
 
-    // Add Event Dialog
+    // Unified Create / Edit Event Dialog
     if (uiState.isAddEventDialogOpen) {
+        val editing = uiState.editingEvent
         AddEventDialog(
+            initialEvent = editing,
+            availableCalendars = uiState.availableCalendars,
             onDismiss = { viewModel.closeAddEventDialog() },
-            onConfirm = { title, location, start, end, color ->
-                viewModel.addEvent(title, location, start, end, color)
+            onConfirm = { title, location, description, start, end, isAllDay, color, targetCalId ->
+                if (editing != null) {
+                    viewModel.updateEvent(
+                        eventId = editing.id,
+                        title = title,
+                        location = location,
+                        description = description,
+                        startMillis = start,
+                        endMillis = end,
+                        isAllDay = isAllDay,
+                        colorHex = color,
+                        targetCalendarId = targetCalId
+                    )
+                } else {
+                    viewModel.addEvent(
+                        title = title,
+                        location = location,
+                        startMillis = start,
+                        endMillis = end,
+                        colorHex = color,
+                        description = description,
+                        isAllDay = isAllDay,
+                        targetCalendarId = targetCalId
+                    )
+                }
             }
         )
     }
@@ -532,12 +654,44 @@ fun CalendarMainScreen(
         EventDetailDialog(
             event = event,
             onDismiss = { viewModel.selectEvent(null) },
+            onEdit = { viewModel.openEditEventDialog(event) },
             onDelete = { viewModel.deleteEvent(event.id) }
         )
     }
+
+    // Calendar Sync Diagnostics & Repair Sheet
+    if (uiState.isDiagnosticsSheetOpen) {
+        SyncDiagnosticsBottomSheet(
+            diagnostics = uiState.syncDiagnostics,
+            isRunningDiagnostics = uiState.isRunningDiagnostics,
+            isRepairingSync = uiState.isRepairingSync,
+            onDismiss = { viewModel.closeDiagnosticsSheet() },
+            onRefreshDiagnostics = { viewModel.runDiagnostics() },
+            onRepairAndForceSync = { viewModel.repairAndForceAccountSync(context) },
+            onExpandFiltersQuickFix = { viewModel.applyFilterQuickFix() },
+            onOpenSyncSettings = {
+                if (!openAndroidSyncSettings(context)) {
+                    viewModel.notifyMessage(
+                        context.getString(R.string.diagnostics_open_settings_failed),
+                        isError = true
+                    )
+                }
+            },
+            onOpenGoogleCalendar = {
+                if (!openGoogleCalendarApp(context)) {
+                    viewModel.notifyMessage(
+                        context.getString(R.string.msg_open_calendar_app_failed),
+                        isError = true
+                    )
+                }
+            },
+            onCopyReport = { reportText ->
+                copyTextToClipboard(context, reportText)
+                viewModel.notifyMessage(context.getString(R.string.diagnostics_report_copied))
+            }
+        )
+    }
 }
-
-
 
 @Composable
 fun AgendaScheduleContent(
@@ -548,16 +702,28 @@ fun AgendaScheduleContent(
     onDeleteEvent: (String) -> Unit,
     onOpenAddEvent: () -> Unit,
     onSyncNow: () -> Unit = {},
+    onOpenDiagnostics: (() -> Unit)? = null,
+    onExpandFiltersQuickFix: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    val dynamicCalendarChips = remember(uiState.availableCalendars) {
+        uiState.availableCalendars
+            .map { it.displayName }
+            .distinct()
+            .filter { it.isNotBlank() && it !in listOf("All", "Today", "Tomorrow", "All Day") }
+            .take(3)
+    }
+    val categories = remember(dynamicCalendarChips) {
+        listOf("All", "Today", "Tomorrow", "All Day") + dynamicCalendarChips
+    }
+
     Column(modifier = modifier.fillMaxSize()) {
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Search field
         OutlinedTextField(
             value = uiState.searchQuery,
             onValueChange = onSearchQueryChanged,
-            placeholder = { Text("Search upcoming events...") },
+            placeholder = { Text(stringResource(R.string.search_events_placeholder)) },
             leadingIcon = {
                 Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
             },
@@ -577,12 +743,13 @@ fun AgendaScheduleContent(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // Category chips
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            listOf("All", "Today", "Tomorrow", "Work").forEach { category ->
+            categories.forEach { category ->
                 FilterChip(
                     selected = uiState.activeCategory == category,
                     onClick = { onCategorySelected(category) },
@@ -597,13 +764,15 @@ fun AgendaScheduleContent(
         val timeframe = when (uiState.activeCategory) {
             "Today" -> "today"
             "Tomorrow" -> "tomorrow"
-            "Work" -> "work categories"
-            else -> if (uiState.widgetPreferences.daysHorizon == 1) "today" else "the next ${uiState.widgetPreferences.daysHorizon} days"
+            "All Day" -> "all-day events"
+            "All" -> if (uiState.widgetPreferences.daysHorizon == 1) "today" else "the next ${uiState.widgetPreferences.daysHorizon} days"
+            else -> uiState.activeCategory
         }
 
-        // LazyColumn component displaying events with title, time, color indicator
-        // or a friendly empty state component inside the LazyColumn when no events are scheduled.
-        // Wrapped with PullToRefreshBox to force-sync calendar data from ContentProvider.
+        val hiddenOutsideFilter = uiState.syncDiagnostics?.let { diag ->
+            if (diag.eventsMatchingCurrentFilters == 0) diag.eventsIn60DayWindow else 0
+        } ?: 0
+
         EventListLazyColumn(
             events = uiState.filteredEvents,
             timeframe = timeframe,
@@ -614,19 +783,86 @@ fun AgendaScheduleContent(
             hasCalendarPermission = uiState.hasCalendarPermission,
             syncedAccountName = uiState.syncedAccountName,
             availableCalendarsCount = uiState.availableCalendars.size,
+            hiddenEventsOutsideFilterCount = hiddenOutsideFilter,
+            activeDaysHorizon = uiState.widgetPreferences.daysHorizon,
             onEventClick = onSelectEvent,
             onDeleteEvent = onDeleteEvent,
             onAddEvent = onOpenAddEvent,
             onSyncNow = onSyncNow,
+            onOpenDiagnostics = onOpenDiagnostics,
+            onExpandFiltersQuickFix = onExpandFiltersQuickFix,
             modifier = Modifier.weight(1f)
         )
+    }
+}
+
+private fun openAppPermissionSettings(context: Context) {
+    try {
+        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            data = Uri.fromParts("package", context.packageName, null)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+        context.startActivity(intent)
+    } catch (e: Exception) {
+        AppLogger.w(AppLogger.TAG_UI, "Failed opening app settings directly, opening system settings", e)
+        runCatching {
+            context.startActivity(Intent(Settings.ACTION_SETTINGS).apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK })
+        }
+    }
+}
+
+private fun openAndroidSyncSettings(context: Context): Boolean {
+    return try {
+        val syncIntent = Intent(Settings.ACTION_SYNC_SETTINGS).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+        context.startActivity(syncIntent)
+        true
+    } catch (e: Exception) {
+        AppLogger.w(AppLogger.TAG_UI, "ACTION_SYNC_SETTINGS unavailable, falling back to Settings", e)
+        try {
+            context.startActivity(Intent(Settings.ACTION_SETTINGS).apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK })
+            true
+        } catch (fallbackErr: Exception) {
+            AppLogger.e(AppLogger.TAG_UI, "Unable to open Android Settings", fallbackErr)
+            false
+        }
+    }
+}
+
+private fun openGoogleCalendarApp(context: Context): Boolean {
+    return try {
+        val launchIntent = context.packageManager
+            .getLaunchIntentForPackage(CalendarSyncDiagnosticsHelper.GOOGLE_CALENDAR_PACKAGE)
+            ?.apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK }
+        if (launchIntent != null) {
+            context.startActivity(launchIntent)
+            return true
+        }
+        val viewIntent = Intent(Intent.ACTION_VIEW, Uri.parse("content://com.android.calendar/time")).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+        context.startActivity(viewIntent)
+        true
+    } catch (e: Exception) {
+        AppLogger.w(AppLogger.TAG_UI, "Unable to open Google Calendar app on device", e)
+        false
+    }
+}
+
+private fun copyTextToClipboard(context: Context, text: String) {
+    try {
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+        clipboard?.setPrimaryClip(ClipData.newPlainText("Calendar Sync Diagnostics", text))
+    } catch (e: Exception) {
+        AppLogger.w(AppLogger.TAG_UI, "Unable to copy diagnostics report to clipboard", e)
     }
 }
 
 private fun isRunningInTestEnvironment(): Boolean {
     return try {
         Class.forName("org.robolectric.Robolectric") != null
-    } catch (_: Throwable) {
+    } catch (_: ClassNotFoundException) {
         false
     }
 }

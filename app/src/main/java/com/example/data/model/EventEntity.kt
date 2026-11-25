@@ -8,27 +8,31 @@ import androidx.room.PrimaryKey
  * Room database entity representing a locally cached Google Calendar event.
  * Optimized for offline viewing on the home screen widget and in-app agenda.
  *
- * Indexed on [startMillis], [endMillis], and [calendarId] for high-performance range queries
- * and quick filtering during widget RemoteViews updates.
+ * Indexed on [startMillis], [endMillis], [calendarId], and [sourceCalendarId]
+ * for high-performance range queries and quick filtering during widget RemoteViews updates.
  */
 @Entity(
     tableName = "calendar_events",
     indices = [
         Index(value = ["startMillis"]),
         Index(value = ["endMillis"]),
-        Index(value = ["calendarId"])
+        Index(value = ["calendarId"]),
+        Index(value = ["sourceCalendarId"])
     ]
 )
 data class EventEntity(
     @PrimaryKey
     val id: String,
     val calendarId: String = "primary",
+    val sourceCalendarId: Long = -1L,
+    val parentEventId: Long? = null,
     val title: String,
     val description: String? = null,
     val location: String? = null,
     val startMillis: Long,
     val endMillis: Long,
     val isAllDay: Boolean = false,
+    val isRecurring: Boolean = false,
     val colorHex: String = "#1A73E8",
     val htmlLink: String? = null,
     val dayHeader: String = "",

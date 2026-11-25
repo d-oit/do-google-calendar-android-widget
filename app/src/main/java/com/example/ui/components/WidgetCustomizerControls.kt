@@ -2,7 +2,6 @@ package com.example.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,34 +11,28 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -49,11 +42,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.data.pref.WidgetColorTheme
 import com.example.data.pref.WidgetDensity
 import com.example.data.pref.WidgetPreferences
 import com.example.data.repository.CalendarAccountInfo
+import com.example.util.CalendarColorMapper
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -133,8 +126,9 @@ fun WidgetCustomizerControls(
                     }
                     Text(
                         text = "${preferences.opacityPercent}% " + when {
-                            preferences.opacityPercent <= 15 -> "(Glass)"
-                            preferences.opacityPercent <= 50 -> "(Translucent)"
+                            preferences.opacityPercent == 0 -> "(Clear)"
+                            preferences.opacityPercent <= 25 -> "(Glass)"
+                            preferences.opacityPercent <= 55 -> "(Translucent)"
                             preferences.opacityPercent <= 85 -> "(Frosted)"
                             else -> "(Solid)"
                         },
@@ -227,7 +221,9 @@ fun WidgetCustomizerControls(
                             selected = isSelected,
                             onClick = { onUpdatePreferences(preferences.copy(density = density)) },
                             label = { Text(density.displayName) },
-                            modifier = Modifier.weight(1f).testTag("density_chip_${density.id}")
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("density_chip_${density.id}")
                         )
                     }
                 }
@@ -277,7 +273,9 @@ fun WidgetCustomizerControls(
             // 5. Multi-Calendar Selection Filter
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -288,7 +286,7 @@ fun WidgetCustomizerControls(
                     )
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = if (preferences.isAllCalendarsSelected) "All Google Calendars" else "Custom Filter",
+                            text = if (preferences.isAllCalendarsSelected) "All Calendars" else "Custom Filter",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.SemiBold
@@ -297,7 +295,19 @@ fun WidgetCustomizerControls(
                         Switch(
                             checked = preferences.isAllCalendarsSelected,
                             onCheckedChange = { checked ->
-                                onUpdatePreferences(preferences.copy(isAllCalendarsSelected = checked))
+                                // When switching to Custom Filter for the first time, pre-select all discovered calendars
+                                // if selectedCalendarIds is empty so the user can uncheck specific ones easily.
+                                val updatedSet = if (!checked && preferences.selectedCalendarIds.isEmpty() && availableCalendars.isNotEmpty()) {
+                                    availableCalendars.map { it.id }.toSet()
+                                } else {
+                                    preferences.selectedCalendarIds
+                                }
+                                onUpdatePreferences(
+                                    preferences.copy(
+                                        isAllCalendarsSelected = checked,
+                                        selectedCalendarIds = updatedSet
+                                    )
+                                )
                             },
                             modifier = Modifier.testTag("all_calendars_switch")
                         )
@@ -319,11 +329,20 @@ fun WidgetCustomizerControls(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         } else {
+                            if (preferences.selectedCalendarIds.isEmpty()) {
+                                Text(
+                                    text = "No calendars selected — enable at least one calendar to show events.",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                )
+                            }
                             availableCalendars.forEach { cal ->
                                 val isChecked = preferences.selectedCalendarIds.contains(cal.id)
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
+                                        .heightIn(min = 48.dp)
                                         .clip(RoundedCornerShape(8.dp))
                                         .clickable {
                                             val newSet = if (isChecked) {
@@ -333,7 +352,8 @@ fun WidgetCustomizerControls(
                                             }
                                             onUpdatePreferences(preferences.copy(selectedCalendarIds = newSet))
                                         }
-                                        .padding(horizontal = 4.dp, vertical = 2.dp),
+                                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                                        .testTag("calendar_filter_item_${cal.id}"),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Checkbox(
@@ -347,7 +367,12 @@ fun WidgetCustomizerControls(
                                             onUpdatePreferences(preferences.copy(selectedCalendarIds = newSet))
                                         }
                                     )
-                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .size(10.dp)
+                                            .background(CalendarColorMapper.parseColorHex(cal.colorHex), CircleShape)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
                                             text = cal.displayName,
@@ -376,7 +401,9 @@ fun WidgetCustomizerControls(
                 )
 
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -389,7 +416,9 @@ fun WidgetCustomizerControls(
                 }
 
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -402,7 +431,9 @@ fun WidgetCustomizerControls(
                 }
 
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {

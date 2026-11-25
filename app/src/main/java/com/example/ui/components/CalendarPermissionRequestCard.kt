@@ -1,6 +1,7 @@
 package com.example.ui.components
 
 import android.Manifest
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -32,7 +33,6 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -42,21 +42,15 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.example.util.AppLogger
 
 /**
  * Reusable helper composable that remembers a permission launcher for READ_CALENDAR and WRITE_CALENDAR.
@@ -76,14 +70,7 @@ fun rememberCalendarPermissionLauncher(
 
 /**
  * Material 3 Component that requests READ_CALENDAR permissions from the Android system
- * to access the user's Google Calendar data.
- *
- * Implements a clean two-state UI:
- * 1. Permission Not Granted: An informative educational card detailing why READ_CALENDAR
- *    is required (zero cloud API keys, direct Android system access, private to device),
- *    with a primary grant button and settings fallback.
- * 2. Permission Granted: A status confirmation badge displaying the synced account and a
- *    manual sync trigger.
+ * to access the user's native device Google Calendar data (zero API keys / zero OAuth).
  */
 @Composable
 fun CalendarPermissionRequestCard(
@@ -91,11 +78,9 @@ fun CalendarPermissionRequestCard(
     syncedAccount: String,
     onRequestPermission: () -> Unit,
     onSync: () -> Unit,
-    onGoogleSignIn: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    var showRationaleDialog by remember { mutableStateOf(false) }
 
     AnimatedVisibility(
         visible = !hasCalendarPermission,
@@ -108,7 +93,7 @@ fun CalendarPermissionRequestCard(
                 .testTag("grant_permission_card"),
             shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
+                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
             ),
             border = BorderStroke(
                 width = 1.dp,
@@ -120,7 +105,6 @@ fun CalendarPermissionRequestCard(
                     .fillMaxWidth()
                     .padding(20.dp)
             ) {
-                // Header badge + title
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth()
@@ -146,13 +130,13 @@ fun CalendarPermissionRequestCard(
 
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Connect Google Calendar",
+                            text = "Connect Device Calendar",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "Google Account Sync",
+                            text = "Native On-Device Calendar Sync",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.Medium
@@ -163,20 +147,18 @@ fun CalendarPermissionRequestCard(
                 Spacer(modifier = Modifier.height(10.dp))
 
                 Text(
-                    text = "Allow access to display your Google Calendar schedule in the widget and agenda.",
+                    text = "Allow calendar access to display your Google Calendar schedule directly from your device accounts—no API keys or external sign-in required.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Action buttons row
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Primary permission request button
                     Button(
                         onClick = onRequestPermission,
                         shape = RoundedCornerShape(14.dp),
@@ -201,7 +183,6 @@ fun CalendarPermissionRequestCard(
                         )
                     }
 
-                    // Secondary App Settings fallback
                     OutlinedButton(
                         onClick = { openAppSettings(context) },
                         shape = RoundedCornerShape(14.dp),
@@ -216,35 +197,11 @@ fun CalendarPermissionRequestCard(
                         )
                     }
                 }
-
-                if (onGoogleSignIn != null) {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    OutlinedButton(
-                        onClick = onGoogleSignIn,
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(44.dp)
-                            .testTag("google_sign_in_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Security,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Sign in with Google Account",
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                }
             }
         }
     }
 
-    // Connected state when permission is granted
+    // Connected state when permission is granted (theme-aware for both light and dark modes)
     AnimatedVisibility(
         visible = hasCalendarPermission,
         enter = fadeIn() + expandVertically(),
@@ -256,9 +213,9 @@ fun CalendarPermissionRequestCard(
                 .testTag("connected_status_card"),
             shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(
-                containerColor = Color(0xFFE6F4EA)
+                containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.65f)
             ),
-            border = BorderStroke(1.dp, Color(0xFFCEEAD6))
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
         ) {
             Row(
                 modifier = Modifier
@@ -269,13 +226,13 @@ fun CalendarPermissionRequestCard(
                 Box(
                     modifier = Modifier
                         .size(36.dp)
-                        .background(Color(0xFF34A853).copy(alpha = 0.15f), CircleShape),
+                        .background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.16f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.CheckCircle,
                         contentDescription = "Permission Granted",
-                        tint = Color(0xFF137333),
+                        tint = MaterialTheme.colorScheme.tertiary,
                         modifier = Modifier.size(22.dp)
                     )
                 }
@@ -284,15 +241,15 @@ fun CalendarPermissionRequestCard(
 
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Google Calendar",
+                        text = "Device Calendar Connected",
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF137333),
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
                         style = MaterialTheme.typography.titleSmall
                     )
                     Text(
-                        text = if (syncedAccount.isNotBlank()) syncedAccount else "Local Device Calendar",
+                        text = syncedAccount.ifBlank { "Local Device Calendar" },
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFF202124)
+                        color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
                     )
                 }
 
@@ -305,7 +262,7 @@ fun CalendarPermissionRequestCard(
                     Icon(
                         imageVector = Icons.Default.Refresh,
                         contentDescription = "Sync now",
-                        tint = Color(0xFF137333),
+                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -314,9 +271,6 @@ fun CalendarPermissionRequestCard(
     }
 }
 
-/**
- * Opens system application details settings if permission was previously permanently denied.
- */
 private fun openAppSettings(context: Context) {
     try {
         val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
@@ -324,27 +278,15 @@ private fun openAppSettings(context: Context) {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK
         }
         context.startActivity(intent)
-    } catch (_: Throwable) {
-        // Fallback to general settings
-        val fallbackIntent = Intent(Settings.ACTION_SETTINGS).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK
-        }
-        context.startActivity(fallbackIntent)
-    }
-}
-
-fun openAccountSettings(context: Context) {
-    try {
-        val intent = Intent(Settings.ACTION_SYNC_SETTINGS).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK
-        }
-        context.startActivity(intent)
-    } catch (_: Throwable) {
+    } catch (e: ActivityNotFoundException) {
+        AppLogger.w(AppLogger.TAG_UI, "App details settings unavailable, falling back to Settings", e)
         try {
-            val intent = Intent(Settings.ACTION_SETTINGS).apply {
+            val fallbackIntent = Intent(Settings.ACTION_SETTINGS).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
-            context.startActivity(intent)
-        } catch (_: Throwable) {}
+            context.startActivity(fallbackIntent)
+        } catch (fallbackErr: Exception) {
+            AppLogger.e(AppLogger.TAG_UI, "Unable to open device Settings", fallbackErr)
+        }
     }
 }

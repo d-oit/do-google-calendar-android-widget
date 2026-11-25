@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Update
 import com.example.data.model.EventEntity
 import kotlinx.coroutines.flow.Flow
@@ -23,11 +24,23 @@ interface EventDao {
     fun getUpcomingEventsFlow(nowMillis: Long): Flow<List<EventEntity>>
 
     /**
+     * Horizon-bounded reactive stream of events for Jetpack Compose UI.
+     */
+    @Query("SELECT * FROM calendar_events WHERE endMillis >= :minEndMillis AND startMillis < :maxStartMillis ORDER BY startMillis ASC")
+    fun getUpcomingEventsInRangeFlow(minEndMillis: Long, maxStartMillis: Long): Flow<List<EventEntity>>
+
+    /**
      * Synchronous query of upcoming and ongoing events for widget RemoteViewsFactory.
      * Required because RemoteViewsService operates synchronously on background binder threads.
      */
     @Query("SELECT * FROM calendar_events WHERE endMillis >= :nowMillis ORDER BY startMillis ASC")
     fun getUpcomingEventsSync(nowMillis: Long): List<EventEntity>
+
+    /**
+     * Horizon-bounded synchronous query for widget RemoteViewsFactory.
+     */
+    @Query("SELECT * FROM calendar_events WHERE endMillis >= :minEndMillis AND startMillis < :maxStartMillis ORDER BY startMillis ASC")
+    fun getUpcomingEventsInRangeSync(minEndMillis: Long, maxStartMillis: Long): List<EventEntity>
 
     /**
      * Synchronous query for top N upcoming events for constrained widget layouts.
@@ -124,4 +137,27 @@ interface EventDao {
      */
     @Query("DELETE FROM calendar_events")
     suspend fun clearAll()
+
+    /**
+     * Atomically replaces synced events in a single database transaction so UI and widget
+     * observers never see an intermediate empty table during sync.
+     */
+    @Transaction
+    suspend fun replaceSyncedEvents(events: List<EventEntity>) {
+        clearSyncedEvents()
+        if (events.isNotEmpty()) {
+            insertEvents(events)
+        }
+    }
+
+    /**
+     * Atomically replaces all cached events (e.g. when recomputing day headers).
+     */
+    @Transaction
+    suspend fun replaceAllEvents(events: List<EventEntity>) {
+        clearAll()
+        if (events.isNotEmpty()) {
+            insertEvents(events)
+        }
+    }
 }

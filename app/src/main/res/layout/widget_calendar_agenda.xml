@@ -1,107 +1,208 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:background="@drawable/widget_bg"
-    android:padding="12dp">
+    android:layout_height="match_parent">
 
-    <!-- Header bar -->
-    <LinearLayout
-        android:id="@+id/widget_header"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingBottom="8dp">
-
-        <ImageView
-            android:id="@+id/widget_app_icon"
-            android:layout_width="22dp"
-            android:layout_height="22dp"
-            android:contentDescription="@string/app_name"
-            android:src="@drawable/ic_widget_calendar" />
-
-        <TextView
-            android:id="@+id/widget_date_title"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:layout_weight="1"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:text="Upcoming Agenda"
-            android:textColor="#1F1F1F"
-            android:textSize="15sp"
-            android:textStyle="bold" />
-
-        <ImageView
-            android:id="@+id/widget_add_btn"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:background="@drawable/widget_refresh_btn_bg"
-            android:contentDescription="New Event"
-            android:padding="7dp"
-            android:src="@drawable/ic_widget_add" />
-
-        <ImageView
-            android:id="@+id/widget_refresh_btn"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:layout_marginStart="6dp"
-            android:background="@drawable/widget_refresh_btn_bg"
-            android:contentDescription="Refresh Schedule"
-            android:padding="7dp"
-            android:src="@drawable/ic_widget_refresh" />
-    </LinearLayout>
-
+    <!-- Rounded background fill layer (tinted & alpha-adjusted via RemoteViews) -->
     <ImageView
+        android:id="@+id/widget_bg_fill"
         android:layout_width="match_parent"
-        android:layout_height="1dp"
-        android:background="#E0E3E7"
+        android:layout_height="match_parent"
+        android:contentDescription="@null"
         android:importantForAccessibility="no"
-        android:contentDescription="@null" />
+        android:scaleType="fitXY"
+        android:src="@drawable/widget_bg_fill" />
 
-    <!-- Schedule Collection / Empty View Frame -->
-    <FrameLayout
+    <!-- Rounded glassmorphic border stroke layer -->
+    <ImageView
+        android:id="@+id/widget_bg_stroke"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:paddingTop="6dp">
+        android:layout_height="match_parent"
+        android:contentDescription="@null"
+        android:importantForAccessibility="no"
+        android:scaleType="fitXY"
+        android:src="@drawable/widget_bg_stroke" />
 
-        <ListView
-            android:id="@+id/widget_agenda_list"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:divider="@null"
-            android:dividerHeight="6dp"
-            android:scrollbars="none" />
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="12dp">
 
+        <!-- Header bar -->
         <LinearLayout
-            android:id="@+id/widget_empty_view"
+            android:id="@+id/widget_header"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:gravity="center"
-            android:orientation="vertical"
-            android:padding="16dp"
-            android:visibility="gone">
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingBottom="8dp">
 
             <ImageView
-                android:layout_width="36dp"
-                android:layout_height="36dp"
-                android:alpha="0.6"
-                android:contentDescription="Empty calendar"
+                android:id="@+id/widget_app_icon"
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:contentDescription="@string/app_name"
                 android:src="@drawable/ic_widget_calendar" />
 
-            <TextView
-                android:id="@+id/widget_empty_text"
-                android:layout_width="wrap_content"
+            <LinearLayout
+                android:id="@+id/widget_header_text_container"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:text="No upcoming events"
-                android:textColor="#5F6368"
-                android:textSize="13sp" />
+                android:layout_marginStart="8dp"
+                android:layout_marginEnd="4dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/widget_date_title"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:text="@string/widget_default_title"
+                    android:textColor="#1F1F1F"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <LinearLayout
+                    android:id="@+id/widget_sync_status_row"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="1dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:id="@+id/widget_sync_dot"
+                        android:layout_width="6dp"
+                        android:layout_height="6dp"
+                        android:contentDescription="@null"
+                        android:importantForAccessibility="no"
+                        android:src="@drawable/widget_btn_circle" />
+
+                    <TextView
+                        android:id="@+id/widget_sync_time_text"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="4dp"
+                        android:ellipsize="end"
+                        android:maxLines="1"
+                        android:text="@string/widget_sync_never"
+                        android:textColor="#5F6368"
+                        android:textSize="10sp" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <FrameLayout
+                android:id="@+id/widget_add_btn_container"
+                android:layout_width="48dp"
+                android:layout_height="48dp">
+
+                <ImageView
+                    android:id="@+id/widget_add_btn_bg"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:layout_gravity="center"
+                    android:contentDescription="@null"
+                    android:importantForAccessibility="no"
+                    android:scaleType="fitXY"
+                    android:src="@drawable/widget_btn_circle" />
+
+                <ImageView
+                    android:id="@+id/widget_add_btn"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:contentDescription="@string/widget_new_event_desc"
+                    android:padding="15dp"
+                    android:src="@drawable/ic_widget_add" />
+            </FrameLayout>
+
+            <FrameLayout
+                android:id="@+id/widget_refresh_btn_container"
+                android:layout_width="48dp"
+                android:layout_height="48dp">
+
+                <ImageView
+                    android:id="@+id/widget_refresh_btn_bg"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:layout_gravity="center"
+                    android:contentDescription="@null"
+                    android:importantForAccessibility="no"
+                    android:scaleType="fitXY"
+                    android:src="@drawable/widget_btn_circle" />
+
+                <ImageView
+                    android:id="@+id/widget_refresh_btn"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:contentDescription="@string/widget_refresh_desc"
+                    android:padding="15dp"
+                    android:src="@drawable/ic_widget_refresh" />
+
+                <ProgressBar
+                    android:id="@+id/widget_refresh_progress"
+                    style="?android:attr/progressBarStyleSmall"
+                    android:layout_width="18dp"
+                    android:layout_height="18dp"
+                    android:layout_gravity="center"
+                    android:indeterminate="true"
+                    android:indeterminateTint="#1A73E8"
+                    android:visibility="gone" />
+            </FrameLayout>
         </LinearLayout>
-    </FrameLayout>
-</LinearLayout>
+
+        <ImageView
+            android:id="@+id/widget_divider"
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#E0E3E7"
+            android:contentDescription="@null"
+            android:importantForAccessibility="no" />
+
+        <!-- Schedule Collection / Empty View Frame -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:paddingTop="6dp">
+
+            <ListView
+                android:id="@+id/widget_agenda_list"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:divider="@null"
+                android:dividerHeight="6dp"
+                android:scrollbars="none" />
+
+            <LinearLayout
+                android:id="@+id/widget_empty_view"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:padding="16dp"
+                android:visibility="gone">
+
+                <ImageView
+                    android:id="@+id/widget_empty_icon"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:alpha="0.7"
+                    android:contentDescription="@string/widget_no_events"
+                    android:src="@drawable/ic_widget_calendar" />
+
+                <TextView
+                    android:id="@+id/widget_empty_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:text="@string/widget_no_events"
+                    android:textColor="#5F6368"
+                    android:textSize="13sp" />
+            </LinearLayout>
+        </FrameLayout>
+    </LinearLayout>
+</FrameLayout>

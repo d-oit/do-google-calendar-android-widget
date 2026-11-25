@@ -30,13 +30,14 @@ com.example
 ├── CalendarApp.kt                       # Application entry point & DI singleton
 ├── MainActivity.kt                      # Companion Activity (Live Customization Studio)
 ├── data
-│   ├── dao/EventDao.kt                  # Room DAO for cached calendar events
+│   ├── dao/EventDao.kt                  # Room DAO with @Transaction batch ops
 │   ├── db/AppDatabase.kt                # Room database instance
 │   ├── model/EventEntity.kt             # Room entity with composite indices
+│   ├── model/OperationResult.kt         # Sealed AppError & OperationResult types
 │   ├── pref/WidgetPreferencesManager.kt # Customization preferences store
 │   └── repository/CalendarRepository.kt # Native CalendarContract querying & sync
 ├── ui
-│   ├── CalendarViewModel.kt             # Jetpack Compose UI state management
+│   ├── CalendarViewModel.kt             # Jetpack Compose UI state & UiError/UiEvent
 │   ├── components
 │   │   ├── AddEventDialog.kt            # Create real event dialog
 │   │   ├── EventDetailDialog.kt         # Event detail view
@@ -44,10 +45,18 @@ com.example
 │   │   ├── WidgetCustomizerControls.kt  # Customization controls (sliders, chips)
 │   │   └── WidgetPreviewCard.kt         # Real-time interactive widget canvas
 │   └── theme/                           # Color, Theme, Type tokens (Material 3)
-└── widget
-    ├── CalendarAgendaViewsFactory.kt    # RemoteViews list factory with custom themes
-    ├── CalendarAgendaWidgetProvider.kt  # AppWidgetProvider broadcast receiver
-    └── CalendarAgendaWidgetService.kt   # RemoteViewsService binding
+├── util
+│   ├── AppLogger.kt                     # Tagged android.util.Log wrapper (DEBUG-gated)
+│   └── CalendarColorMapper.kt           # CalendarContract color extraction & mapping
+├── widget
+│   ├── CalendarAgendaViewsFactory.kt    # RemoteViews list factory with custom themes
+│   ├── CalendarAgendaWidgetProvider.kt  # AppWidgetProvider broadcast receiver
+│   ├── CalendarAgendaWidgetService.kt   # RemoteViewsService binding
+│   ├── CalendarGlanceWidget.kt          # Jetpack Glance AppWidget + GlanceWidgetUpdater
+│   └── CalendarGlanceWidgetReceiver.kt  # GlanceAppWidgetReceiver host
+└── worker
+    ├── CalendarSyncScheduler.kt         # WorkManager unique periodic/immediate sync scheduler
+    └── CalendarSyncWorker.kt            # CoroutineWorker syncing CalendarContract + Glance updates
 ```
 
 ### Persistence Rules
@@ -75,6 +84,11 @@ com.example
    - Always apply `Modifier.testTag("snake_case_tag")` to all primary buttons, inputs, chips, and sliders.
    - Enforce 48dp minimum interactive touch target size.
    - Use `Icons.AutoMirrored` for directional icons (e.g. Back, Launch).
+6. **Error Handling, Logging & Concurrency Standards**:
+   - Never use `printStackTrace()` or silent `catch (_: Throwable)` blocks; log via `AppLogger` with standardized tags (`AppLogger.TAG_*`).
+   - Always rethrow `CancellationException` inside `suspend` `try/catch` blocks.
+   - Surface repository/sync failures via `OperationResult` -> `UiError` / `UiEvent.ShowSnackbar` with Retry or Settings actions.
+   - Wrap multi-step Room clear+insert operations in `@Transaction` methods (`replaceSyncedEvents`, `replaceAllEvents`).
 
 ---
 
@@ -94,4 +108,6 @@ if (appWidgetIds.isNotEmpty()) {
     }
     context.sendBroadcast(intent)
 }
+// Also update Jetpack Glance widgets via GlanceAppWidgetManager:
+// GlanceWidgetUpdater.updateAllGlanceWidgets(context)
 ```

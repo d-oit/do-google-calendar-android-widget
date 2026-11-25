@@ -243,10 +243,12 @@ object CalendarColorMapper {
         return try {
             val cleanHex = sanitizeHex(hex, fallbackHex)
             Color(AndroidColor.parseColor(cleanHex))
-        } catch (_: Throwable) {
+        } catch (e: IllegalArgumentException) {
+            AppLogger.w(AppLogger.TAG_COLOR, "Invalid hex color '$hex', using fallback '$fallbackHex'", e)
             try {
                 Color(AndroidColor.parseColor(fallbackHex))
-            } catch (_: Throwable) {
+            } catch (fallbackErr: IllegalArgumentException) {
+                AppLogger.w(AppLogger.TAG_COLOR, "Invalid fallback hex '$fallbackHex'", fallbackErr)
                 Color(0xFF1A73E8)
             }
         }
@@ -259,7 +261,8 @@ object CalendarColorMapper {
         return try {
             val cleanHex = sanitizeHex(hex, DEFAULT_COLOR_HEX)
             AndroidColor.parseColor(cleanHex)
-        } catch (_: Throwable) {
+        } catch (e: IllegalArgumentException) {
+            AppLogger.w(AppLogger.TAG_COLOR, "Invalid color int hex '$hex', using fallback", e)
             fallbackColorInt
         }
     }
@@ -272,11 +275,26 @@ object CalendarColorMapper {
     }
 
     /**
+     * Clears the cached CalendarContract.Colors lookup table so the next sync reloads fresh colors.
+     */
+    fun invalidateColorCache() {
+        colorTableCache.clear()
+        isColorTableLoaded = false
+    }
+
+    /**
      * Queries Android's CalendarContract.Colors table to cache color keys to ARGB integers.
      */
-    fun loadColorsFromProvider(contentResolver: ContentResolver?): Map<String, Int> {
+    fun loadColorsFromProvider(
+        contentResolver: ContentResolver?,
+        forceReload: Boolean = false
+    ): Map<String, Int> {
         if (contentResolver == null) return colorTableCache
-        if (isColorTableLoaded) return colorTableCache
+        if (forceReload) {
+            invalidateColorCache()
+        } else if (isColorTableLoaded) {
+            return colorTableCache
+        }
 
         try {
             val projection = arrayOf(
@@ -301,9 +319,12 @@ object CalendarColorMapper {
                     }
                 }
                 isColorTableLoaded = true
+                AppLogger.d(AppLogger.TAG_COLOR, "Loaded ${colorTableCache.size} entries from CalendarContract.Colors")
             }
-        } catch (_: Throwable) {
-            // Colors table query may fail if permission is missing or table is unpopulated
+        } catch (e: SecurityException) {
+            AppLogger.w(AppLogger.TAG_COLOR, "Permission missing when querying CalendarContract.Colors", e)
+        } catch (e: Exception) {
+            AppLogger.w(AppLogger.TAG_COLOR, "Failed to query CalendarContract.Colors table", e)
         }
         return colorTableCache
     }

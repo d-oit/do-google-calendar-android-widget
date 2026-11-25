@@ -1,6 +1,7 @@
 package com.example.ui.components
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -8,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -15,15 +17,18 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.EventAvailable
+import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.SearchOff
@@ -40,17 +45,23 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.R
 import com.example.data.model.EventEntity
 import com.example.ui.CalendarViewModel
 
@@ -79,9 +90,14 @@ fun EventListLazyColumn(
     val timeframe = when (uiState.activeCategory) {
         "Today" -> "today"
         "Tomorrow" -> "tomorrow"
-        "Work" -> "work categories"
-        else -> if (uiState.widgetPreferences.daysHorizon == 1) "today" else "the next ${uiState.widgetPreferences.daysHorizon} days"
+        "All Day" -> "all-day events"
+        "All" -> if (uiState.widgetPreferences.daysHorizon == 1) "today" else "the next ${uiState.widgetPreferences.daysHorizon} days"
+        else -> uiState.activeCategory
     }
+
+    val hiddenOutsideFilter = uiState.syncDiagnostics?.let { diag ->
+        if (diag.eventsMatchingCurrentFilters == 0) diag.eventsIn60DayWindow else 0
+    } ?: 0
 
     EventListLazyColumn(
         events = uiState.filteredEvents,
@@ -93,10 +109,14 @@ fun EventListLazyColumn(
         hasCalendarPermission = uiState.hasCalendarPermission,
         syncedAccountName = uiState.syncedAccountName,
         availableCalendarsCount = uiState.availableCalendars.size,
+        hiddenEventsOutsideFilterCount = hiddenOutsideFilter,
+        activeDaysHorizon = uiState.widgetPreferences.daysHorizon,
         onEventClick = onEventClick,
         onDeleteEvent = onDeleteEvent,
         onAddEvent = onAddEvent,
         onSyncNow = onSyncNow,
+        onOpenDiagnostics = { viewModel.openDiagnosticsSheet() },
+        onExpandFiltersQuickFix = { viewModel.applyFilterQuickFix() },
         contentPadding = contentPadding,
         modifier = modifier
     )
@@ -122,11 +142,15 @@ fun EventListLazyColumn(
     hasCalendarPermission: Boolean = true,
     syncedAccountName: String? = null,
     availableCalendarsCount: Int = 0,
+    hiddenEventsOutsideFilterCount: Int = 0,
+    activeDaysHorizon: Int = 7,
     contentPadding: PaddingValues = PaddingValues(bottom = 80.dp),
     onEventClick: (EventEntity) -> Unit = {},
     onDeleteEvent: (String) -> Unit = {},
     onAddEvent: () -> Unit = {},
-    onSyncNow: () -> Unit = {}
+    onSyncNow: () -> Unit = {},
+    onOpenDiagnostics: (() -> Unit)? = null,
+    onExpandFiltersQuickFix: (() -> Unit)? = null
 ) {
     val performRefresh = onRefresh ?: onSyncNow
     val pullToRefreshState = rememberPullToRefreshState()
@@ -166,8 +190,12 @@ fun EventListLazyColumn(
                         hasCalendarPermission = hasCalendarPermission,
                         syncedAccountName = syncedAccountName,
                         availableCalendarsCount = availableCalendarsCount,
+                        hiddenEventsOutsideFilterCount = hiddenEventsOutsideFilterCount,
+                        activeDaysHorizon = activeDaysHorizon,
                         onAddEvent = onAddEvent,
                         onSyncNow = onSyncNow,
+                        onOpenDiagnostics = onOpenDiagnostics,
+                        onExpandFiltersQuickFix = onExpandFiltersQuickFix,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 24.dp, horizontal = 8.dp)
@@ -199,8 +227,12 @@ fun FriendlyEmptyEventsState(
     hasCalendarPermission: Boolean = true,
     syncedAccountName: String? = null,
     availableCalendarsCount: Int = 0,
+    hiddenEventsOutsideFilterCount: Int = 0,
+    activeDaysHorizon: Int = 7,
     onAddEvent: () -> Unit = {},
-    onSyncNow: () -> Unit = {}
+    onSyncNow: () -> Unit = {},
+    onOpenDiagnostics: (() -> Unit)? = null,
+    onExpandFiltersQuickFix: (() -> Unit)? = null
 ) {
     Card(
         modifier = modifier
@@ -219,20 +251,42 @@ fun FriendlyEmptyEventsState(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Visual badge icon
-            Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.primaryContainer,
-                modifier = Modifier
-                    .size(68.dp)
-                    .testTag("empty_state_icon_badge")
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = if (isSearchActive) Icons.Default.SearchOff else Icons.Default.EventAvailable,
-                        contentDescription = "No events",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(34.dp)
+            // Visual Material 3 illustration for empty schedule, or search-off icon when filtering
+            if (isSearchActive) {
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    modifier = Modifier
+                        .size(68.dp)
+                        .testTag("empty_state_icon_badge")
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.SearchOff,
+                            contentDescription = "No events",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(34.dp)
+                        )
+                    }
+                }
+            } else {
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    tonalElevation = 1.dp,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+                    modifier = Modifier
+                        .widthIn(max = 200.dp)
+                        .fillMaxWidth(0.68f)
+                        .aspectRatio(4f / 3f)
+                        .testTag("empty_state_illustration")
+                ) {
+                    Image(
+                        painter = painterResource(id = R.drawable.img_empty_calendar),
+                        contentDescription = stringResource(R.string.empty_calendar_illustration_desc),
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(RoundedCornerShape(20.dp))
                     )
                 }
             }
@@ -242,7 +296,7 @@ fun FriendlyEmptyEventsState(
                 isSearchActive -> "No matching events"
                 timeframe.equals("today", ignoreCase = true) -> "All clear for today!"
                 timeframe.equals("tomorrow", ignoreCase = true) -> "Nothing scheduled tomorrow"
-                timeframe.contains("work", ignoreCase = true) -> "No work events scheduled"
+                timeframe.equals("all-day events", ignoreCase = true) -> "No all-day events"
                 else -> "No upcoming events scheduled"
             }
 
@@ -260,7 +314,7 @@ fun FriendlyEmptyEventsState(
                 isSearchActive -> "We couldn't find any events matching \"$searchQuery\". Try checking for typos or searching a different keyword."
                 timeframe.equals("today", ignoreCase = true) -> "You have no upcoming events for today. Enjoy your free time or schedule something new!"
                 timeframe.equals("tomorrow", ignoreCase = true) -> "Your calendar for tomorrow is completely open. Plan ahead by adding an event below."
-                timeframe.contains("work", ignoreCase = true) -> "There are no work-related calendar events found in this timeframe."
+                timeframe.equals("all-day events", ignoreCase = true) -> "There are no all-day events scheduled in the selected horizon."
                 else -> "Your calendar is clear for $timeframe. Add an event or sync with your Google accounts."
             }
 
@@ -358,6 +412,81 @@ fun FriendlyEmptyEventsState(
                     Text(
                         text = "Sync Now",
                         fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+
+            // Inline quick-fix banner when diagnostics detects events outside active filters
+            if (!isSearchActive && hiddenEventsOutsideFilterCount > 0 && onExpandFiltersQuickFix != null) {
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("empty_hidden_events_banner")
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.FilterAlt,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = stringResource(
+                                    R.string.diagnostics_hidden_events_banner,
+                                    hiddenEventsOutsideFilterCount,
+                                    activeDaysHorizon
+                                ),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                        Button(
+                            onClick = onExpandFiltersQuickFix,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .heightIn(min = 48.dp)
+                                .testTag("empty_expand_filters_btn")
+                        ) {
+                            Text(
+                                text = stringResource(R.string.diagnostics_action_expand_filters),
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Troubleshoot Sync shortcut
+            if (!isSearchActive && onOpenDiagnostics != null) {
+                TextButton(
+                    onClick = onOpenDiagnostics,
+                    modifier = Modifier
+                        .heightIn(min = 48.dp)
+                        .testTag("empty_troubleshoot_sync_btn")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Build,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = stringResource(R.string.action_troubleshoot_sync),
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
             }

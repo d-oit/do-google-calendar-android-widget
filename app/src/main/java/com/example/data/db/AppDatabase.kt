@@ -11,7 +11,7 @@ import com.example.data.model.EventEntity
  * Main Room Database for the Agenda Widget app.
  * Persists Google Calendar events for offline viewing on home screen widgets.
  */
-@Database(entities = [EventEntity::class], version = 3, exportSchema = false)
+@Database(entities = [EventEntity::class], version = 4, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun eventDao(): EventDao
 
