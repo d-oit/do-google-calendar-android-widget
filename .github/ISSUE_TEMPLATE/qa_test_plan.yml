@@ -1,0 +1,79 @@
+name: Release QA Test Plan
+description: Track pre-release automated quality gates and manual Android QA sign-off for a target version.
+title: "[QA]: Release Test Plan v0.1.0"
+labels: ["testing", "qa"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this test management checklist before tagging a GitHub Release. All **Automated Gates** and **Release Blocker** checks must pass prior to publishing.
+
+  - type: input
+    id: target_version
+    attributes:
+      label: Target Release Version
+      description: Must match `version.properties` and the upcoming Git tag (e.g. v0.1.0).
+      placeholder: "v0.1.0"
+    validations:
+      required: true
+
+  - type: input
+    id: commit_sha
+    attributes:
+      label: Release Candidate Commit SHA
+      placeholder: "abc1234"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: automated_gates
+    attributes:
+      label: Automated CI & Verification Harness Gates
+      description: Confirm all automated suites are green on the target commit.
+      options:
+        - label: "`bash harness.sh` passed (structure, zero-mockup, zero-API-key, no raw printStackTrace, Lint)"
+          required: true
+        - label: "JVM & Robolectric suite passed (`ExampleUnitTest`, `ReleaseVersionTest`, `ExampleRobolectricTest`, `CalendarViewportTestHarness` CUJ_01–CUJ_22, `CalendarWorkManagerGlanceTest` CUJ_23–CUJ_27, `CalendarSyncDiagnosticsRobolectricTest` CUJ_28–CUJ_33)"
+          required: true
+        - label: "JaCoCo coverage report reviewed (`gradle :app:jacocoDebugUnitTestReport`) with no unexplained drop"
+          required: true
+        - label: "Android Lint Debug report reviewed with zero new critical errors"
+          required: true
+        - label: "Dependency Vulnerability Review passed with zero high/critical advisories"
+          required: true
+
+  - type: checkboxes
+    id: manual_qa
+    attributes:
+      label: Manual Device / Emulator Smoke Test Matrix
+      options:
+        - label: "Fresh install & Calendar Permission flow (`READ_CALENDAR` / `WRITE_CALENDAR` grant & deny states)"
+        - label: "Empty schedule displays honest empty state + Material 3 illustration (zero fake events)"
+        - label: "Live Customization Studio: opacity slider, theme chips, typography density, days horizon, multi-calendar filter"
+        - label: "Pull-to-refresh force-syncs real device Google Calendar events and updates Last Sync indicator"
+        - label: "Classic RemoteViews widget & Jetpack Glance widget render accurately on Home Screen and refresh on tap"
+        - label: "Add Event & Delete Event flows persist directly to `CalendarContract` and reflect in widget"
+        - label: "Sync Diagnostics bottom sheet accurately detects and repairs unsynced calendar flags"
+        - label: "Adaptive layout verified on compact phone (<600dp) and tablet/foldable (>=600dp)"
+
+  - type: checkboxes
+    id: release_readiness
+    attributes:
+      label: Release Packaging & Governance Sign-Off
+      options:
+        - label: "`version.properties` updated (`VERSION_MAJOR`, `VERSION_MINOR`, `VERSION_PATCH`, `VERSION_CODE`)"
+          required: true
+        - label: "`CHANGELOG.md` updated with release date and categorized entries"
+          required: true
+        - label: "Release workflow dry-run (`dry_run: true`) succeeded and SHA-256 checksums verified"
+        - label: "Zero open P0/P1 bugs targeting this milestone"
+
+  - type: textarea
+    id: qa_notes
+    attributes:
+      label: QA Notes, Device Matrix & Known Issues
+      placeholder: |
+        Tested on:
+        - Pixel 8 (Android 15): Pass
+        - Foldable Emulator (Android 14): Pass
+        Known non-blocking issues: None

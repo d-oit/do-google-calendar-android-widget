@@ -1,0 +1,81 @@
+name: Bug Report
+description: Report a defect in the Agenda Widget app, home screen widget, or calendar sync.
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting an issue! Please provide device, launcher, and reproduction details so we can investigate quickly.
+
+  - type: input
+    id: app_version
+    attributes:
+      label: App Version
+      description: Release version where the bug occurred (e.g. 0.1.0).
+      placeholder: "0.1.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected Area
+      options:
+        - Companion App (Live Customization Studio)
+        - Classic RemoteViews Home Screen Widget
+        - Jetpack Glance Home Screen Widget
+        - CalendarContract Sync / WorkManager
+        - Sync Diagnostics Sheet
+        - Build / CI / Release Pipeline
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - P0 - Crash / Data Loss / Release Blocker
+        - P1 - Major Functional Defect
+        - P2 - Minor UI or Behavior Issue
+        - P3 - Cosmetic / Polish
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Android Version, Device & Launcher
+      description: Example - Android 15 (API 35), Pixel 8, Pixel Launcher
+      placeholder: "Android 15, Pixel 8, Pixel Launcher"
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      placeholder: |
+        1. Place the Agenda Widget on the home screen.
+        2. Adjust opacity to 50% and tap Apply.
+        3. Observe...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected_actual
+    attributes:
+      label: Expected vs. Actual Behavior
+      placeholder: |
+        Expected: ...
+        Actual: ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or Diagnostics Output (Optional)
+      description: Paste Sync Diagnostics summary or logcat output (remove personal calendar titles/emails).
+      render: text

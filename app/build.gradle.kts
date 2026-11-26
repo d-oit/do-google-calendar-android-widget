@@ -1,10 +1,27 @@
+import java.util.Properties
+import org.gradle.testing.jacoco.plugins.JacocoTaskExtension
+import org.gradle.testing.jacoco.tasks.JacocoReport
+
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.kotlin.compose)
   alias(libs.plugins.google.devtools.ksp)
+  id("jacoco")
   // alias(libs.plugins.secrets)
   // alias(libs.plugins.google.services)
 }
+
+val versionPropsFile = rootProject.file("version.properties")
+val versionProps = Properties().apply {
+  if (versionPropsFile.exists()) {
+    versionPropsFile.inputStream().use { load(it) }
+  }
+}
+val appVersionMajor = versionProps.getProperty("VERSION_MAJOR", "0").trim().toInt()
+val appVersionMinor = versionProps.getProperty("VERSION_MINOR", "1").trim().toInt()
+val appVersionPatch = versionProps.getProperty("VERSION_PATCH", "0").trim().toInt()
+val appVersionCode = versionProps.getProperty("VERSION_CODE", "1").trim().toInt()
+val appVersionName = "$appVersionMajor.$appVersionMinor.$appVersionPatch"
 
 android {
   namespace = "com.example"
@@ -14,8 +31,8 @@ android {
     applicationId = "com.aistudio.calendarwidget.xrqmpz"
     minSdk = 24
     targetSdk = 36
-    versionCode = 1
-    versionName = "1.0"
+    versionCode = appVersionCode
+    versionName = appVersionName
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -48,6 +65,7 @@ android {
       signingConfig = signingConfigs.getByName("release")
     }
     debug {
+      enableUnitTestCoverage = true
       // Do not remove or modify this signingConfig assignment. It is necessary for Android apps in
       // AI Studio.
       signingConfig = signingConfigs.getByName("debugConfig")
@@ -131,3 +149,64 @@ dependencies {
   "ksp"(libs.androidx.room.compiler)
   // "ksp"(libs.moshi.kotlin.codegen)
 }
+
+jacoco {
+  toolVersion = "0.8.12"
+}
+
+tasks.withType<Test>().configureEach {
+  configure<JacocoTaskExtension> {
+    isIncludeNoLocationClasses = true
+    excludes = listOf("jdk.internal.*")
+  }
+}
+
+tasks.register<JacocoReport>("jacocoDebugUnitTestReport") {
+  group = "verification"
+  description = "Generates JaCoCo XML and HTML code coverage reports for debug unit and Robolectric tests."
+  dependsOn("testDebugUnitTest")
+
+  reports {
+    xml.required.set(true)
+    html.required.set(true)
+    csv.required.set(false)
+    xml.outputLocation.set(layout.buildDirectory.file("reports/jacoco/jacocoDebugUnitTestReport/jacocoDebugUnitTestReport.xml"))
+    html.outputLocation.set(layout.buildDirectory.dir("reports/jacoco/jacocoDebugUnitTestReport/html"))
+  }
+
+  val fileFilter = listOf(
+    "**/R.class",
+    "**/R$*.class",
+    "**/BuildConfig.*",
+    "**/Manifest*.*",
+    "**/*Test*.*",
+    "android/**/*.*",
+    "**/*_Impl*.*",
+    "**/*_Factory*.*",
+    "**/ComposableSingletons*.*",
+    "**/*\$Lambda$*.*"
+  )
+
+  val buildDir = layout.buildDirectory
+  val builtInKotlinClasses = buildDir.dir("intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes").map { dir ->
+    fileTree(dir) { exclude(fileFilter) }
+  }
+  val legacyKotlinClasses = buildDir.dir("tmp/kotlin-classes/debug").map { dir ->
+    fileTree(dir) { exclude(fileFilter) }
+  }
+  val javaClasses = buildDir.dir("intermediates/javac/debug/compileDebugJavaWithJavac/classes").map { dir ->
+    fileTree(dir) { exclude(fileFilter) }
+  }
+
+  classDirectories.setFrom(files(builtInKotlinClasses, legacyKotlinClasses, javaClasses))
+  sourceDirectories.setFrom(files("${project.projectDir}/src/main/java", "${project.projectDir}/src/main/kotlin"))
+  executionData.setFrom(
+    fileTree(buildDir) {
+      include(
+        "outputs/unit_test_code_coverage/debugUnitTest/testDebugUnitTest.exec",
+        "jacoco/testDebugUnitTest.exec"
+      )
+    }
+  )
+}
+

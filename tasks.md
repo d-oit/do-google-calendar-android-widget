@@ -106,3 +106,10 @@
 - [x] **Task 15.1**: Generate Material 3 expressive empty calendar illustration drawable (`res/drawable/img_empty_calendar.jpg`) matching the app's Material You / Google Blue color palette.
 - [x] **Task 15.2**: Integrate `img_empty_calendar` into `FriendlyEmptyEventsState` (`EventListLazyColumn`), `WidgetPreviewCard`, and `CalendarGlanceWidget` when no upcoming events exist.
 - [x] **Task 15.3**: Verify illustration node presence in `CUJ_26` and run full `bash harness.sh` + `compile_applet`.
+
+## Phase 16: GitHub Release & Test Management (Starting at v0.1.0)
+- [x] **Task 16.1**: Initialize centralized Semantic Versioning in `version.properties` (`0.1.0`, `versionCode = 1`), wire into `app/build.gradle.kts`, and add `ReleaseVersionTest`.
+- [x] **Task 16.2**: Configure JaCoCo (`jacocoDebugUnitTestReport`) in `app/build.gradle.kts` with Robolectric-safe settings and generated-code exclusions.
+- [x] **Task 16.3**: Author GitHub Actions CI (`.github/workflows/ci.yml`) and Release Pipeline (`.github/workflows/release.yml`) with tag/manual dispatch, signed Release APK/AAB + debug fallback, SHA-256 checksums, JUnit reporting, JaCoCo summary, Android Lint, and dependency review.
+- [x] **Task 16.4**: Add GitHub governance files (`CHANGELOG.md`, `docs/RELEASE.md`, `docs/TESTING.md`, `.github/release.yml`, `.github/dependabot.yml`, PR template, Bug/Feature/Release QA Test Plan issue forms).
+- [x] **Task 16.5**: Upgrade `harness.sh` with `--static-only` mode and version metadata validation, then verify via `bash harness.sh`, `gradle :app:jacocoDebugUnitTestReport`, and `compile_applet`.

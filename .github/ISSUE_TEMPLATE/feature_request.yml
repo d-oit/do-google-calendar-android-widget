@@ -1,0 +1,30 @@
+name: Feature Request
+description: Propose a new widget customization option, sync improvement, or app capability.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: User Problem / Motivation
+      description: What problem does this solve for Agenda Widget users?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed Solution
+      description: Describe the expected behavior and UX. Keep native CalendarContract (zero API key) constraints in mind.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria & Test Cases
+      placeholder: |
+        - [ ] Behavior works on compact phone and expanded tablet viewports
+        - [ ] Covered by Robolectric CUJ test
+    validations:
+      required: false

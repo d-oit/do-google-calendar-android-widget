@@ -1,0 +1,145 @@
+name: Android CI & Quality Gates
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
+jobs:
+  verify-and-test:
+    name: Build, Test, Coverage & Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle 9.3.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
+
+      - name: Restore debug keystore for debug builds
+        run: |
+          if [ ! -f debug.keystore ] && [ -f debug.keystore.base64 ]; then
+            base64 -d debug.keystore.base64 > debug.keystore
+            echo "Decoded debug.keystore from debug.keystore.base64"
+          fi
+
+      - name: Run static safety & version structure checks
+        run: |
+          bash harness.sh --static-only
+
+      - name: Run unit, Robolectric tests & JaCoCo coverage
+        run: |
+          gradle :app:jacocoDebugUnitTestReport --stacktrace
+
+      - name: Publish JUnit test results
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Unit & Robolectric Tests
+          path: app/build/test-results/testDebugUnitTest/*.xml
+          reporter: java-junit
+          fail-on-error: true
+
+      - name: Publish JaCoCo coverage summary
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import os, xml.etree.ElementTree as ET
+          xml_path = "app/build/reports/jacoco/jacocoDebugUnitTestReport/jacocoDebugUnitTestReport.xml"
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+          if not os.path.exists(xml_path):
+              msg = "## JaCoCo Coverage Summary\n\n_Coverage report was not generated._\n"
+          else:
+              root = ET.parse(xml_path).getroot()
+              rows = []
+              for counter in root.findall("counter"):
+                  ctype = counter.attrib["type"].capitalize()
+                  missed = int(counter.attrib["missed"])
+                  covered = int(counter.attrib["covered"])
+                  total = missed + covered
+                  pct = (covered / total * 100.0) if total > 0 else 0.0
+                  rows.append(f"| {ctype} | {covered} | {missed} | {total} | **{pct:.1f}%** |")
+              msg = (
+                  "## JaCoCo Coverage Summary (Debug Unit & Robolectric)\n\n"
+                  "| Metric | Covered | Missed | Total | Coverage |\n"
+                  "| --- | ---: | ---: | ---: | ---: |\n"
+                  + "\n".join(rows)
+                  + "\n"
+              )
+          print(msg)
+          if summary_path:
+              with open(summary_path, "a", encoding="utf-8") as fh:
+                  fh.write(msg + "\n")
+          PY
+
+      - name: Run Android Lint
+        run: |
+          gradle :app:lintDebug --stacktrace
+
+      - name: Upload JUnit test reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: junit-test-reports
+          path: app/build/test-results/testDebugUnitTest/
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Upload JaCoCo coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: jacoco-coverage-report
+          path: app/build/reports/jacoco/jacocoDebugUnitTestReport/
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Upload Android Lint report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-lint-report
+          path: |
+            app/build/reports/lint-results-debug.html
+            app/build/reports/lint-results-debug.xml
+          retention-days: 14
+          if-no-files-found: warn
+
+  dependency-review:
+    name: Dependency Vulnerability Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Review dependency changes
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: on-failure

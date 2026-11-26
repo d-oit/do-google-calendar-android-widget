@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Release Management Playbook
+    url: ../blob/main/docs/RELEASE.md
+    about: Guidelines for versioning, signing secrets, and publishing GitHub Releases.
+  - name: Test Management & QA Playbook
+    url: ../blob/main/docs/TESTING.md
+    about: Automated test tiers, CUJ matrix, JaCoCo coverage, and release QA sign-off criteria.

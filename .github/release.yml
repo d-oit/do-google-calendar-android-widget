@@ -1,0 +1,37 @@
+# GitHub automatically generated release notes categorization
+changelog:
+  exclude:
+    labels:
+      - ignore-for-release
+      - duplicate
+      - invalid
+      - wontfix
+    authors:
+      - dependabot
+  categories:
+    - title: Breaking Changes
+      labels:
+        - breaking-change
+    - title: Features & Enhancements
+      labels:
+        - enhancement
+        - feature
+    - title: Bug Fixes
+      labels:
+        - bug
+        - fix
+    - title: Testing & Quality Assurance
+      labels:
+        - testing
+        - qa
+    - title: Documentation
+      labels:
+        - documentation
+    - title: Dependencies & Maintenance
+      labels:
+        - dependencies
+        - chore
+        - ci
+    - title: Other Changes
+      labels:
+        - "*"

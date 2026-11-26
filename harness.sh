@@ -5,6 +5,11 @@
 
 set -e
 
+STATIC_ONLY=false
+if [ "${1:-}" = "--static-only" ]; then
+    STATIC_ONLY=true
+fi
+
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 BLUE='\033[0;34m'
@@ -28,6 +33,12 @@ REQUIRED_FILES=(
     "app/src/main/java/com/example/widget/CalendarGlanceWidgetReceiver.kt"
     "app/src/main/java/com/example/worker/CalendarSyncWorker.kt"
     "app/src/main/java/com/example/worker/CalendarSyncScheduler.kt"
+    "version.properties"
+    "CHANGELOG.md"
+    "docs/RELEASE.md"
+    "docs/TESTING.md"
+    ".github/workflows/ci.yml"
+    ".github/workflows/release.yml"
     "product.md"
     "tasks.md"
     "AGENTS.md"
@@ -39,11 +50,23 @@ for file in "${REQUIRED_FILES[@]}"; do
         exit 1
     fi
 done
-echo -e "${GREEN}✓ All core files present.${NC}"
+echo -e "${GREEN}✓ All core and release governance files present.${NC}"
 
 # 2. Static Safety & Quality Gates
-echo -e "\n${YELLOW}[2/4] Running static safety & logging checks...${NC}"
-MOCK_MATCHES=$(grep -rn --exclude-dir=.gradle --exclude-dir=build --exclude-dir=.git --exclude="tasks.md" --exclude="product.md" --exclude="AGENTS.md" --exclude="implementation_plan.md" --exclude="harness.sh" "generateSeedEvents" . || true)
+echo -e "\n${YELLOW}[2/4] Running static safety, versioning & logging checks...${NC}"
+
+# Validate version.properties SemVer fields
+VERSION_MAJOR=$(grep -E '^VERSION_MAJOR=' version.properties | cut -d'=' -f2 | tr -d '[:space:]')
+VERSION_MINOR=$(grep -E '^VERSION_MINOR=' version.properties | cut -d'=' -f2 | tr -d '[:space:]')
+VERSION_PATCH=$(grep -E '^VERSION_PATCH=' version.properties | cut -d'=' -f2 | tr -d '[:space:]')
+VERSION_CODE=$(grep -E '^VERSION_CODE=' version.properties | cut -d'=' -f2 | tr -d '[:space:]')
+if ! [[ "$VERSION_MAJOR" =~ ^[0-9]+$ && "$VERSION_MINOR" =~ ^[0-9]+$ && "$VERSION_PATCH" =~ ^[0-9]+$ && "$VERSION_CODE" =~ ^[1-9][0-9]*$ ]]; then
+    echo -e "${RED}ERROR: Invalid version.properties values (got ${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH} code=${VERSION_CODE})${NC}"
+    exit 1
+fi
+echo -e "${GREEN}✓ Version metadata valid: v${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH} (versionCode=${VERSION_CODE}).${NC}"
+
+MOCK_MATCHES=$(grep -rn --exclude-dir=.gradle --exclude-dir=build --exclude-dir=.git --exclude="tasks.md" --exclude="product.md" --exclude="AGENTS.md" --exclude="implementation_plan.md" --exclude="harness.sh" --exclude="TESTING.md" "generateSeedEvents" . || true)
 if [ -n "$MOCK_MATCHES" ]; then
     echo -e "${RED}ERROR: Found forbidden seed mockup data references:${NC}"
     echo "$MOCK_MATCHES"
@@ -71,6 +94,11 @@ if [ -n "$API_KEY_MATCHES" ]; then
     exit 1
 fi
 echo -e "${GREEN}✓ Static safety, zero-mockup, and logging checks passed.${NC}"
+
+if [ "$STATIC_ONLY" = true ]; then
+    echo -e "\n${GREEN}✓ Static-only verification completed successfully.${NC}"
+    exit 0
+fi
 
 # 3. Compile and Run Unit Tests
 echo -e "\n${YELLOW}[3/4] Running Kotlin Compilation & Robolectric Test Suite...${NC}"
