@@ -89,6 +89,7 @@ class CalendarSyncWorker(
                                     "CalendarSyncWorker failed after $MAX_RETRY_ATTEMPTS retries: ${error.message}",
                                     errorCause
                                 )
+                                GlanceWidgetUpdater.updateAllGlanceWidgets(applicationContext)
                                 Result.failure(workDataOf(KEY_ERROR_MESSAGE to error.message))
                             }
                         }

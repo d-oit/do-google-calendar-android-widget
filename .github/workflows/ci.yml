@@ -97,6 +97,10 @@ jobs:
         run: |
           gradle :app:lintDebug --stacktrace
 
+      - name: Verify Release Kotlin Compilation
+        run: |
+          gradle :app:compileReleaseKotlin --stacktrace
+
       - name: Upload JUnit test reports
         uses: actions/upload-artifact@v4
         if: always()

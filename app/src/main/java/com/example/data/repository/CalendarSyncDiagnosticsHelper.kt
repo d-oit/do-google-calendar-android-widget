@@ -16,6 +16,7 @@ import com.example.data.model.SyncRepairReport
 import com.example.data.model.SyncRootCause
 import com.example.data.pref.WidgetPreferences
 import com.example.util.AppLogger
+import com.example.util.LogSanitizer
 import java.util.TimeZone
 
 /**
@@ -60,13 +61,14 @@ class CalendarSyncDiagnosticsHelper(
         if (accountName.isBlank() || accountType.isBlank() || accountType == CalendarContract.ACCOUNT_TYPE_LOCAL) {
             return null
         }
+        val safeAccount = LogSanitizer.redactEmail(accountName)
         return try {
             ContentResolver.getSyncAutomatically(Account(accountName, accountType), CalendarContract.AUTHORITY)
         } catch (e: SecurityException) {
-            AppLogger.w(AppLogger.TAG_SYNC, "Permission denied reading account auto-sync for $accountName", e)
+            AppLogger.w(AppLogger.TAG_SYNC, "Permission denied reading account auto-sync for $safeAccount", e)
             null
         } catch (e: Exception) {
-            AppLogger.w(AppLogger.TAG_SYNC, "Failed reading account auto-sync for $accountName", e)
+            AppLogger.w(AppLogger.TAG_SYNC, "Failed reading account auto-sync for $safeAccount", e)
             null
         }
     }
@@ -75,10 +77,11 @@ class CalendarSyncDiagnosticsHelper(
         if (accountName.isBlank() || accountType.isBlank() || accountType == CalendarContract.ACCOUNT_TYPE_LOCAL) {
             return false
         }
+        val safeAccount = LogSanitizer.redactEmail(accountName)
         return try {
             ContentResolver.isSyncActive(Account(accountName, accountType), CalendarContract.AUTHORITY)
         } catch (e: Exception) {
-            AppLogger.d(AppLogger.TAG_SYNC, "Unable to read isSyncActive for $accountName: ${e.message}")
+            AppLogger.d(AppLogger.TAG_SYNC, "Unable to read isSyncActive for $safeAccount: ${e.message}")
             false
         }
     }
@@ -87,10 +90,11 @@ class CalendarSyncDiagnosticsHelper(
         if (accountName.isBlank() || accountType.isBlank() || accountType == CalendarContract.ACCOUNT_TYPE_LOCAL) {
             return false
         }
+        val safeAccount = LogSanitizer.redactEmail(accountName)
         return try {
             ContentResolver.isSyncPending(Account(accountName, accountType), CalendarContract.AUTHORITY)
         } catch (e: Exception) {
-            AppLogger.d(AppLogger.TAG_SYNC, "Unable to read isSyncPending for $accountName: ${e.message}")
+            AppLogger.d(AppLogger.TAG_SYNC, "Unable to read isSyncPending for $safeAccount: ${e.message}")
             false
         }
     }
@@ -270,16 +274,17 @@ class CalendarSyncDiagnosticsHelper(
 
         uniqueAccounts.forEach { cal ->
             val account = Account(cal.accountName, cal.accountType)
+            val safeAccount = LogSanitizer.redactEmail(cal.accountName)
             try {
                 if (ContentResolver.getSyncAutomatically(account, CalendarContract.AUTHORITY).not()) {
                     ContentResolver.setSyncAutomatically(account, CalendarContract.AUTHORITY, true)
                     autoSyncEnabledCount++
-                    AppLogger.i(AppLogger.TAG_SYNC, "Enabled calendar auto-sync for ${cal.accountName}")
+                    AppLogger.i(AppLogger.TAG_SYNC, "Enabled calendar auto-sync for $safeAccount")
                 }
             } catch (e: SecurityException) {
-                AppLogger.w(AppLogger.TAG_SYNC, "Unable to modify auto-sync for ${cal.accountName}", e)
+                AppLogger.w(AppLogger.TAG_SYNC, "Unable to modify auto-sync for $safeAccount", e)
             } catch (e: Exception) {
-                AppLogger.w(AppLogger.TAG_SYNC, "Error checking/enabling auto-sync for ${cal.accountName}", e)
+                AppLogger.w(AppLogger.TAG_SYNC, "Error checking/enabling auto-sync for $safeAccount", e)
             }
 
             try {
@@ -291,10 +296,10 @@ class CalendarSyncDiagnosticsHelper(
                 syncRequestedCount++
                 AppLogger.i(
                     AppLogger.TAG_SYNC,
-                    "Requested manual expedited CalendarContract sync for ${cal.accountName} (${cal.accountType})"
+                    "Requested manual expedited CalendarContract sync for $safeAccount (${cal.accountType})"
                 )
             } catch (e: Exception) {
-                AppLogger.w(AppLogger.TAG_SYNC, "Failed calling requestSync for ${cal.accountName}", e)
+                AppLogger.w(AppLogger.TAG_SYNC, "Failed calling requestSync for $safeAccount", e)
             }
         }
 

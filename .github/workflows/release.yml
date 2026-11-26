@@ -40,9 +40,13 @@ jobs:
 
       - name: Resolve and validate release version
         id: version
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_TAG_NAME: ${{ inputs.tag_name }}
+          INPUT_PRERELEASE: ${{ inputs.prerelease }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            RELEASE_TAG="${{ inputs.tag_name }}"
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            RELEASE_TAG="$INPUT_TAG_NAME"
           else
             RELEASE_TAG="${GITHUB_REF_NAME}"
           fi
@@ -65,7 +69,7 @@ jobs:
           fi
 
           IS_PRERELEASE="false"
-          if [[ "$RELEASE_TAG" == *-* ]] || [ "${{ inputs.prerelease }}" = "true" ]; then
+          if [[ "$RELEASE_TAG" == *-* ]] || [ "$INPUT_PRERELEASE" = "true" ]; then
             IS_PRERELEASE="true"
           fi
 
@@ -93,10 +97,10 @@ jobs:
             base64 -d debug.keystore.base64 > debug.keystore
           fi
 
-      - name: Run full verification harness & coverage
+      - name: Run static harness, tests, coverage, lint & release compile
         run: |
-          bash harness.sh
-          gradle :app:jacocoDebugUnitTestReport --stacktrace
+          bash harness.sh --static-only
+          gradle :app:jacocoDebugUnitTestReport :app:lintDebug :app:compileReleaseKotlin --stacktrace
 
       - name: Publish JUnit release verification report
         uses: dorny/test-reporter@v1
@@ -113,9 +117,9 @@ jobs:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           mkdir -p release-artifacts
-          VERSION="${{ steps.version.outputs.version }}"
 
           if [ -n "$ANDROID_KEYSTORE_BASE64" ] && [ -n "$ANDROID_STORE_PASSWORD" ] && [ -n "$ANDROID_KEY_PASSWORD" ]; then
             echo "Release signing secrets detected. Building signed Release APK and AAB..."
@@ -133,6 +137,9 @@ jobs:
 
             cp "$APK_PATH" "release-artifacts/agenda-widget-${VERSION}-release.apk"
             cp "$AAB_PATH" "release-artifacts/agenda-widget-${VERSION}-release.aab"
+            if [ -f "app/build/outputs/mapping/release/mapping.txt" ]; then
+              cp "app/build/outputs/mapping/release/mapping.txt" "release-artifacts/agenda-widget-${VERSION}-mapping.txt"
+            fi
             echo "signing_mode=signed-release" >> "$GITHUB_OUTPUT"
           else
             echo "::warning::Release signing secrets (ANDROID_KEYSTORE_BASE64, ANDROID_STORE_PASSWORD, ANDROID_KEY_PASSWORD) are not configured. Falling back to verified Debug APK."
@@ -153,12 +160,16 @@ jobs:
           cat release-artifacts/checksums-sha256.txt
 
       - name: Extract changelog release notes
+        env:
+          BASE_VERSION: ${{ steps.version.outputs.base_version }}
+          RELEASE_TAG: ${{ steps.version.outputs.release_tag }}
+          SIGNING_MODE: ${{ steps.build_artifacts.outputs.signing_mode }}
         run: |
           python3 - <<'PY'
           import os, re
-          base_version = "${{ steps.version.outputs.base_version }}"
-          release_tag = "${{ steps.version.outputs.release_tag }}"
-          signing_mode = "${{ steps.build_artifacts.outputs.signing_mode }}"
+          base_version = os.environ["BASE_VERSION"]
+          release_tag = os.environ["RELEASE_TAG"]
+          signing_mode = os.environ["SIGNING_MODE"]
 
           notes = ""
           if os.path.exists("CHANGELOG.md"):
@@ -212,15 +223,22 @@ jobs:
 
       - name: Write Release Audit Summary
         if: always()
+        env:
+          RELEASE_TAG: ${{ steps.version.outputs.release_tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+          VERSION_CODE: ${{ steps.version.outputs.version_code }}
+          SIGNING_MODE: ${{ steps.build_artifacts.outputs.signing_mode }}
+          IS_PRERELEASE: ${{ steps.version.outputs.is_prerelease }}
+          DRY_RUN: ${{ inputs.dry_run || false }}
         run: |
           {
-            echo "## Release Summary: ${{ steps.version.outputs.release_tag }}"
+            echo "## Release Summary: ${RELEASE_TAG}"
             echo ""
-            echo "- **Version Name**: \`${{ steps.version.outputs.version }}\`"
-            echo "- **Version Code**: \`${{ steps.version.outputs.version_code }}\`"
-            echo "- **Signing Mode**: \`${{ steps.build_artifacts.outputs.signing_mode }}\`"
-            echo "- **Pre-release**: \`${{ steps.version.outputs.is_prerelease }}\`"
-            echo "- **Dry Run**: \`${{ inputs.dry_run || false }}\`"
+            echo "- **Version Name**: \`${VERSION}\`"
+            echo "- **Version Code**: \`${VERSION_CODE}\`"
+            echo "- **Signing Mode**: \`${SIGNING_MODE}\`"
+            echo "- **Pre-release**: \`${IS_PRERELEASE}\`"
+            echo "- **Dry Run**: \`${DRY_RUN}\`"
             echo ""
             echo "### Checksums"
             echo '```text'

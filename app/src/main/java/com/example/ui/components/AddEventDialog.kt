@@ -51,18 +51,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.R
 import com.example.data.model.EventEntity
 import com.example.data.repository.CalendarAccountInfo
 import com.example.util.CalendarColorMapper
-import java.text.SimpleDateFormat
+import com.example.util.CalendarDateFormatter
 import java.util.Calendar
-import java.util.Date
-import java.util.Locale
 import java.util.TimeZone
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -82,6 +83,7 @@ fun AddEventDialog(
     initialEvent: EventEntity? = null,
     availableCalendars: List<CalendarAccountInfo> = emptyList()
 ) {
+    val context = LocalContext.current
     val writableCalendars = remember(availableCalendars) {
         availableCalendars.filter { it.isWritable }
     }
@@ -158,16 +160,17 @@ fun AddEventDialog(
     val formattedDate = remember(selectedYear, selectedMonth, selectedDayOfMonth) {
         val c = Calendar.getInstance().apply {
             set(selectedYear, selectedMonth, selectedDayOfMonth, 0, 0, 0)
+            set(Calendar.MILLISECOND, 0)
         }
-        SimpleDateFormat("EEE, MMM d, yyyy", Locale.getDefault()).format(c.time)
+        CalendarDateFormatter.formatFullDate(c.timeInMillis)
     }
 
-    val formattedStartTime = remember(startHour, startMinute) {
-        formatHourMinute(startHour, startMinute)
+    val formattedStartTime = remember(startHour, startMinute, context) {
+        formatHourMinute(context, startHour, startMinute)
     }
 
-    val formattedEndTime = remember(endHour, endMinute) {
-        formatHourMinute(endHour, endMinute)
+    val formattedEndTime = remember(endHour, endMinute, context) {
+        formatHourMinute(context, endHour, endMinute)
     }
 
     val currentDurationMinutes = remember(startHour, startMinute, endHour, endMinute) {
@@ -178,7 +181,11 @@ fun AddEventDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
-                text = if (initialEvent == null) "Add Event to Agenda" else "Edit Event",
+                text = if (initialEvent == null) {
+                    stringResource(R.string.dialog_add_event_title)
+                } else {
+                    stringResource(R.string.dialog_edit_event_title)
+                },
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold
             )
@@ -197,11 +204,11 @@ fun AddEventDialog(
                         title = it
                         if (it.isNotBlank()) showTitleError = false
                     },
-                    label = { Text("Event Title") },
-                    placeholder = { Text("e.g., Team Sync, Doctor Visit") },
+                    label = { Text(stringResource(R.string.field_event_title)) },
+                    placeholder = { Text(stringResource(R.string.field_event_title_placeholder)) },
                     isError = showTitleError,
                     supportingText = if (showTitleError) {
-                        { Text("Please enter an event title") }
+                        { Text(stringResource(R.string.field_event_title_required)) }
                     } else null,
                     singleLine = true,
                     modifier = Modifier
@@ -218,7 +225,7 @@ fun AddEventDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "All-day event",
+                        text = stringResource(R.string.field_event_all_day),
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Medium
                     )
@@ -240,7 +247,7 @@ fun AddEventDialog(
                 ) {
                     Icon(
                         imageVector = Icons.Default.CalendarToday,
-                        contentDescription = null,
+                        contentDescription = stringResource(R.string.action_pick_date_desc),
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
@@ -249,7 +256,7 @@ fun AddEventDialog(
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.weight(1f)
                     )
-                    Text("Change", style = MaterialTheme.typography.labelMedium)
+                    Text(stringResource(R.string.action_change), style = MaterialTheme.typography.labelMedium)
                 }
 
                 if (!isAllDay) {
@@ -317,7 +324,7 @@ fun AddEventDialog(
                 // Target Calendar Selector
                 if (writableCalendars.isNotEmpty()) {
                     Text(
-                        text = "Calendar",
+                        text = stringResource(R.string.detail_calendar_label),
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -349,8 +356,8 @@ fun AddEventDialog(
                 OutlinedTextField(
                     value = location,
                     onValueChange = { location = it },
-                    label = { Text("Location or Video Link (Optional)") },
-                    placeholder = { Text("e.g., Room 3A, https://meet.google.com/...") },
+                    label = { Text(stringResource(R.string.field_event_location)) },
+                    placeholder = { Text(stringResource(R.string.field_event_location_placeholder)) },
                     singleLine = true,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -360,8 +367,8 @@ fun AddEventDialog(
                 OutlinedTextField(
                     value = description,
                     onValueChange = { description = it },
-                    label = { Text("Notes / Description (Optional)") },
-                    placeholder = { Text("Agenda items, links, or notes") },
+                    label = { Text(stringResource(R.string.field_event_description)) },
+                    placeholder = { Text(stringResource(R.string.field_event_description_placeholder)) },
                     maxLines = 3,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -369,7 +376,7 @@ fun AddEventDialog(
                 )
 
                 Text(
-                    text = "Event Color",
+                    text = stringResource(R.string.field_event_color),
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -465,7 +472,13 @@ fun AddEventDialog(
                 },
                 modifier = Modifier.testTag("save_event_button")
             ) {
-                Text(if (initialEvent == null) "Add to Schedule" else "Save Changes")
+                Text(
+                    if (initialEvent == null) {
+                        stringResource(R.string.action_save_event)
+                    } else {
+                        stringResource(R.string.action_update_event)
+                    }
+                )
             }
         },
         dismissButton = {
@@ -473,7 +486,7 @@ fun AddEventDialog(
                 onClick = onDismiss,
                 modifier = Modifier.testTag("cancel_event_button")
             ) {
-                Text("Cancel")
+                Text(stringResource(R.string.action_cancel))
             }
         }
     )
@@ -503,12 +516,12 @@ fun AddEventDialog(
                         showDatePicker = false
                     }
                 ) {
-                    Text("OK")
+                    Text(stringResource(R.string.action_ok))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDatePicker = false }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.action_cancel))
                 }
             }
         ) {
@@ -523,7 +536,7 @@ fun AddEventDialog(
         )
         AlertDialog(
             onDismissRequest = { showStartTimePicker = false },
-            title = { Text("Select Start Time", fontWeight = FontWeight.Bold) },
+            title = { Text(stringResource(R.string.dialog_select_start_time), fontWeight = FontWeight.Bold) },
             text = { TimePicker(state = timeState) },
             confirmButton = {
                 TextButton(
@@ -537,12 +550,12 @@ fun AddEventDialog(
                         showStartTimePicker = false
                     }
                 ) {
-                    Text("OK")
+                    Text(stringResource(R.string.action_ok))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showStartTimePicker = false }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.action_cancel))
                 }
             }
         )
@@ -555,7 +568,7 @@ fun AddEventDialog(
         )
         AlertDialog(
             onDismissRequest = { showEndTimePicker = false },
-            title = { Text("Select End Time", fontWeight = FontWeight.Bold) },
+            title = { Text(stringResource(R.string.dialog_select_end_time), fontWeight = FontWeight.Bold) },
             text = { TimePicker(state = timeState) },
             confirmButton = {
                 TextButton(
@@ -573,22 +586,24 @@ fun AddEventDialog(
                         showEndTimePicker = false
                     }
                 ) {
-                    Text("OK")
+                    Text(stringResource(R.string.action_ok))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showEndTimePicker = false }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.action_cancel))
                 }
             }
         )
     }
 }
 
-private fun formatHourMinute(hour: Int, minute: Int): String {
+private fun formatHourMinute(context: android.content.Context, hour: Int, minute: Int): String {
     val c = Calendar.getInstance().apply {
         set(Calendar.HOUR_OF_DAY, hour)
         set(Calendar.MINUTE, minute)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
     }
-    return SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date(c.timeInMillis))
+    return CalendarDateFormatter.formatTime(context, c.timeInMillis)
 }

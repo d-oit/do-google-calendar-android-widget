@@ -31,29 +31,44 @@ com.example
 ├── MainActivity.kt                      # Companion Activity (Live Customization Studio)
 ├── data
 │   ├── dao/EventDao.kt                  # Room DAO with @Transaction batch ops
-│   ├── db/AppDatabase.kt                # Room database instance
+│   ├── db/AppDatabase.kt                # Room database instance (excluded from cloud backups)
+│   ├── model/CalendarSyncDiagnostics.kt # Diagnostics snapshot + PII-redacted report builder
 │   ├── model/EventEntity.kt             # Room entity with composite indices
 │   ├── model/OperationResult.kt         # Sealed AppError & OperationResult types
-│   ├── pref/WidgetPreferencesManager.kt # Customization preferences store
-│   └── repository/CalendarRepository.kt # Native CalendarContract querying & sync
+│   ├── pref/WidgetPreferencesManager.kt # Customization preferences store (debounced broadcasts)
+│   ├── repository/
+│   │   ├── CalendarEventWriter.kt       # Native CalendarContract create/update/delete writes
+│   │   ├── CalendarProviderDataSource.kt# Native CalendarContract read queries & fallback
+│   │   ├── CalendarRepository.kt        # Sync orchestration & Room cache coordination
+│   │   └── CalendarSyncDiagnosticsHelper.kt # Provider health & sync adapter repair
+│   └── update/AppUpdateChecker.kt       # Optional HTTPS-only GitHub Releases SemVer checker
 ├── ui
-│   ├── CalendarViewModel.kt             # Jetpack Compose UI state & UiError/UiEvent
+│   ├── CalendarViewModel.kt             # Jetpack Compose UI state, midnight rollover & UiEvent
 │   ├── components
-│   │   ├── AddEventDialog.kt            # Create real event dialog
+│   │   ├── AboutReleaseBottomSheet.kt   # Version info, privacy summary & update check sheet
+│   │   ├── AddEventDialog.kt            # Create/edit real event dialog
+│   │   ├── AgendaScheduleContent.kt     # Search, locale-safe category filters & agenda list
+│   │   ├── CalendarPermissionRequestCard.kt # Native CalendarContract permission onboarding
 │   │   ├── EventDetailDialog.kt         # Event detail view
 │   │   ├── EventItemCard.kt             # Agenda item card
+│   │   ├── EventListLazyColumn.kt       # Pull-to-refresh list + empty states
+│   │   ├── SyncDiagnosticsBottomSheet.kt# Diagnostics inspector + sanitized log viewer
 │   │   ├── WidgetCustomizerControls.kt  # Customization controls (sliders, chips)
+│   │   ├── WidgetPinChooserDialog.kt    # Glance vs. Classic widget pin selector
 │   │   └── WidgetPreviewCard.kt         # Real-time interactive widget canvas
-│   └── theme/                           # Color, Theme, Type tokens (Material 3)
+│   └── theme/                           # Color, Theme (AgendaWidgetTheme), Type tokens (M3)
 ├── util
-│   ├── AppLogger.kt                     # Tagged android.util.Log wrapper (DEBUG-gated)
-│   └── CalendarColorMapper.kt           # CalendarContract color extraction & mapping
+│   ├── AppLogger.kt                     # Tagged logger + LogSanitizer + 120-entry ring buffer
+│   ├── CalendarColorMapper.kt           # CalendarContract color extraction & mapping
+│   ├── CalendarDateFormatter.kt         # Locale-aware 12h/24h date/time & day-boundary utils
+│   └── RuntimeEnvironment.kt            # Shared Robolectric/JVM test environment detection
 ├── widget
 │   ├── CalendarAgendaViewsFactory.kt    # RemoteViews list factory with custom themes
-│   ├── CalendarAgendaWidgetProvider.kt  # AppWidgetProvider broadcast receiver
+│   ├── CalendarAgendaWidgetProvider.kt  # Hardened AppWidgetProvider broadcast receiver
 │   ├── CalendarAgendaWidgetService.kt   # RemoteViewsService binding
 │   ├── CalendarGlanceWidget.kt          # Jetpack Glance AppWidget + GlanceWidgetUpdater
-│   └── CalendarGlanceWidgetReceiver.kt  # GlanceAppWidgetReceiver host
+│   ├── CalendarGlanceWidgetReceiver.kt  # GlanceAppWidgetReceiver host (date/time/provider)
+│   └── WidgetThemeHelper.kt             # Dynamic & preset widget color resolution
 └── worker
     ├── CalendarSyncScheduler.kt         # WorkManager unique periodic/immediate sync scheduler
     └── CalendarSyncWorker.kt            # CoroutineWorker syncing CalendarContract + Glance updates

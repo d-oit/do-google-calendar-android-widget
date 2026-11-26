@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.MyApplication" parent="android:Theme.DeviceDefault.NoActionBar" />
+    <style name="Theme.AgendaWidget" parent="android:Theme.DeviceDefault.NoActionBar" />
+
+    <!-- Retained for backwards compatibility with legacy references -->
+    <style name="Theme.MyApplication" parent="Theme.AgendaWidget" />
 </resources>

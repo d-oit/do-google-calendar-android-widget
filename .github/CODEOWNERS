@@ -1,0 +1,11 @@
+# Default repository ownership rules (update with your GitHub team/handles)
+* @maintainers
+
+# Release, CI/CD, and security-sensitive paths
+/.github/ @maintainers
+/version.properties @maintainers
+/scripts/ @maintainers
+/app/build.gradle.kts @maintainers
+/app/proguard-rules.pro @maintainers
+/app/src/main/AndroidManifest.xml @maintainers
+/SECURITY.md @maintainers

@@ -50,22 +50,28 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.data.model.CalendarDiagnosticEntry
 import com.example.data.model.CalendarSyncDiagnostics
 import com.example.data.model.SyncRootCause
+import com.example.util.AppLogger
 import com.example.util.CalendarColorMapper
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import com.example.util.CalendarDateFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -350,7 +356,14 @@ fun SyncDiagnosticsSheetContent(
                 }
 
                 TextButton(
-                    onClick = { onCopyReport(diagnostics.buildPlainTextReport()) },
+                    onClick = {
+                        onCopyReport(
+                            diagnostics.buildPlainTextReport(
+                                redactPii = true,
+                                recentLogs = AppLogger.formatRecentLogs(limit = 40)
+                            )
+                        )
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(min = 48.dp)
@@ -363,6 +376,125 @@ fun SyncDiagnosticsSheetContent(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(text = stringResource(R.string.diagnostics_action_copy_report))
+                }
+            }
+
+            // 5. Recent Sanitized Diagnostic Logs Ring Buffer
+            RecentSanitizedLogsCard(diagnosticsKey = diagnostics.checkedAtMillis)
+        }
+    }
+}
+
+@Composable
+private fun RecentSanitizedLogsCard(diagnosticsKey: Long) {
+    var expanded by remember { mutableStateOf(false) }
+    var refreshNonce by remember { mutableIntStateOf(0) }
+    val logs = remember(diagnosticsKey, refreshNonce, expanded) {
+        AppLogger.formatRecentLogs(limit = 40)
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("diagnostics_logs_section"),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.diagnostics_section_logs, logs.size),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = stringResource(R.string.diagnostics_logs_privacy_hint),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                TextButton(
+                    onClick = { expanded = !expanded },
+                    modifier = Modifier
+                        .heightIn(min = 48.dp)
+                        .testTag("diagnostics_toggle_logs_button")
+                ) {
+                    Text(
+                        text = if (expanded) {
+                            stringResource(R.string.diagnostics_logs_hide)
+                        } else {
+                            stringResource(R.string.diagnostics_logs_show)
+                        }
+                    )
+                }
+            }
+
+            AnimatedVisibility(visible = expanded) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (logs.isEmpty()) {
+                        Text(
+                            text = stringResource(R.string.diagnostics_logs_empty),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surface,
+                            border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(10.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                logs.takeLast(25).forEach { line ->
+                                    Text(
+                                        text = line,
+                                        style = MaterialTheme.typography.bodySmall.copy(
+                                            fontFamily = FontFamily.Monospace,
+                                            fontSize = 11.sp
+                                        ),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            TextButton(
+                                onClick = {
+                                    AppLogger.clearRecentLogs()
+                                    refreshNonce++
+                                },
+                                modifier = Modifier
+                                    .heightIn(min = 48.dp)
+                                    .testTag("diagnostics_clear_logs_button")
+                            ) {
+                                Text(text = stringResource(R.string.diagnostics_logs_clear))
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -530,9 +662,9 @@ private fun RootCauseDiagnosisCard(
 
 @Composable
 private fun SystemHealthCard(diagnostics: CalendarSyncDiagnostics) {
-    val formattedClock = remember(diagnostics.checkedAtMillis) {
-        SimpleDateFormat("EEE, MMM d, yyyy • h:mm a", Locale.getDefault())
-            .format(Date(diagnostics.checkedAtMillis))
+    val context = LocalContext.current
+    val formattedClock = remember(diagnostics.checkedAtMillis, context) {
+        "${CalendarDateFormatter.formatFullDate(diagnostics.checkedAtMillis)} • ${CalendarDateFormatter.formatTime(context, diagnostics.checkedAtMillis)}"
     }
 
     Card(

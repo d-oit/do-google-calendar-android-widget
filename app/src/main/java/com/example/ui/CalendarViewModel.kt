@@ -8,6 +8,7 @@ import android.content.Intent
 import android.os.Build
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.BuildConfig
 import com.example.R
 import com.example.data.model.AppError
 import com.example.data.model.CalendarSyncDiagnostics
@@ -17,9 +18,15 @@ import com.example.data.pref.WidgetPreferences
 import com.example.data.pref.WidgetPreferencesManager
 import com.example.data.repository.CalendarAccountInfo
 import com.example.data.repository.CalendarRepository
+import com.example.data.update.AppUpdateChecker
+import com.example.data.update.UpdateCheckResult
 import com.example.util.AppLogger
+import com.example.util.CalendarDateFormatter
 import com.example.widget.CalendarAgendaWidgetProvider
+import com.example.widget.CalendarGlanceWidgetReceiver
 import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -30,6 +37,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -38,6 +47,64 @@ enum class ErrorAction {
     NONE,
     RETRY_SYNC,
     OPEN_SETTINGS
+}
+
+enum class WidgetPinType {
+    GLANCE,
+    CLASSIC
+}
+
+/**
+ * Locale-independent agenda filter category.
+ * Preserves canonical keys (`All`, `Today`, `Tomorrow`, `All Day`) for persistence & tests.
+ */
+sealed interface AgendaFilterCategory {
+    val canonicalKey: String
+
+    data object All : AgendaFilterCategory {
+        override val canonicalKey: String = "All"
+    }
+
+    data object Today : AgendaFilterCategory {
+        override val canonicalKey: String = "Today"
+    }
+
+    data object Tomorrow : AgendaFilterCategory {
+        override val canonicalKey: String = "Tomorrow"
+    }
+
+    data object AllDay : AgendaFilterCategory {
+        override val canonicalKey: String = "All Day"
+    }
+
+    data class CalendarSource(val displayName: String) : AgendaFilterCategory {
+        override val canonicalKey: String = displayName
+    }
+
+    companion object {
+        fun fromKey(key: String): AgendaFilterCategory = when (key) {
+            "All" -> All
+            "Today" -> Today
+            "Tomorrow" -> Tomorrow
+            "All Day" -> AllDay
+            else -> CalendarSource(key)
+        }
+    }
+}
+
+sealed interface UpdateCheckState {
+    data object Idle : UpdateCheckState
+    data object Checking : UpdateCheckState
+    data class UpToDate(val currentVersion: String) : UpdateCheckState
+    data class UpdateAvailable(
+        val currentVersion: String,
+        val latestVersion: String,
+        val releaseUrl: String,
+        val releaseName: String = "",
+        val releaseNotes: String = ""
+    ) : UpdateCheckState
+    data object NotConfigured : UpdateCheckState
+    data class Error(val message: String) : UpdateCheckState
 }
 
 sealed interface UiError {
@@ -81,7 +148,8 @@ data class CalendarUiState(
     val syncedAccountName: String? = null,
     val availableCalendars: List<CalendarAccountInfo> = emptyList(),
     val searchQuery: String = "",
-    val activeCategory: String = "All",
+    val activeCategory: String = AgendaFilterCategory.All.canonicalKey,
+    val activeFilterCategory: AgendaFilterCategory = AgendaFilterCategory.All,
     val isAddEventDialogOpen: Boolean = false,
     val editingEvent: EventEntity? = null,
     val selectedEventForDetails: EventEntity? = null,
@@ -89,7 +157,10 @@ data class CalendarUiState(
     val isDiagnosticsSheetOpen: Boolean = false,
     val isRunningDiagnostics: Boolean = false,
     val isRepairingSync: Boolean = false,
-    val syncDiagnostics: CalendarSyncDiagnostics? = null
+    val syncDiagnostics: CalendarSyncDiagnostics? = null,
+    val isAboutSheetOpen: Boolean = false,
+    val isPinChooserOpen: Boolean = false,
+    val updateCheckState: UpdateCheckState = UpdateCheckState.Idle
 )
 
 private data class DiagnosticsPanelState(
@@ -99,12 +170,19 @@ private data class DiagnosticsPanelState(
     val snapshot: CalendarSyncDiagnostics? = null
 )
 
-private data class ViewFilters(
-    val search: String,
-    val category: String,
-    val isAddOpen: Boolean,
-    val editingEvent: EventEntity?,
-    val selectedEvent: EventEntity?
+private data class ModalUiState(
+    val isAddOpen: Boolean = false,
+    val editingEvent: EventEntity? = null,
+    val selectedEvent: EventEntity? = null,
+    val isAboutOpen: Boolean = false,
+    val isPinChooserOpen: Boolean = false
+)
+
+private data class FilteredAgendaPayload(
+    val prefFilteredEvents: List<EventEntity>,
+    val finalFilteredEvents: List<EventEntity>,
+    val searchQuery: String,
+    val filterCategory: AgendaFilterCategory
 )
 
 private data class RepoStatus(
@@ -124,18 +202,21 @@ private data class SyncInfo(
     val widgetPreferences: WidgetPreferences
 )
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class CalendarViewModel(
     private val repository: CalendarRepository,
-    private val preferencesManager: WidgetPreferencesManager
+    private val preferencesManager: WidgetPreferencesManager,
+    private val updateChecker: AppUpdateChecker = AppUpdateChecker()
 ) : ViewModel() {
 
     private val _searchQuery = MutableStateFlow("")
-    private val _activeCategory = MutableStateFlow("All")
-    private val _isAddDialogOpen = MutableStateFlow(false)
-    private val _editingEvent = MutableStateFlow<EventEntity?>(null)
-    private val _selectedEvent = MutableStateFlow<EventEntity?>(null)
+    private val _activeFilterCategory = MutableStateFlow<AgendaFilterCategory>(AgendaFilterCategory.All)
+    private val _currentDayStartMillis = MutableStateFlow(CalendarDateFormatter.getStartOfTodayMillis())
+
+    private val _modalState = MutableStateFlow(ModalUiState())
     private val _uiError = MutableStateFlow<UiError?>(null)
     private val _diagnosticsState = MutableStateFlow(DiagnosticsPanelState())
+    private val _updateCheckState = MutableStateFlow<UpdateCheckState>(UpdateCheckState.Idle)
 
     private var providerObserverJob: Job? = null
     private var debouncedObserverSyncJob: Job? = null
@@ -157,16 +238,6 @@ class CalendarViewModel(
                 isError = true
             )
         )
-    }
-
-    private val _filtersFlow = combine(
-        _searchQuery,
-        _activeCategory,
-        _isAddDialogOpen,
-        _editingEvent,
-        _selectedEvent
-    ) { search, category, isAddOpen, editingEvent, selectedEvent ->
-        ViewFilters(search, category, isAddOpen, editingEvent, selectedEvent)
     }
 
     private val _permissionOverride = MutableStateFlow<Boolean?>(null)
@@ -198,46 +269,88 @@ class CalendarViewModel(
         )
     }
 
-    val uiState: StateFlow<CalendarUiState> = combine(
-        repository.getUpcomingEventsFlow()
-            .onStart { emit(emptyList()) }
-            .catch { throwable ->
-                AppLogger.e(AppLogger.TAG_VM, "Database event stream error", throwable)
-                _uiError.value = UiError.SyncFailed("Failed reading cached calendar events.")
-                emit(emptyList())
-            },
-        _syncInfoFlow,
-        _filtersFlow,
-        _uiError,
-        _diagnosticsState
-    ) { events: List<EventEntity>, syncInfo: SyncInfo, filters: ViewFilters, error: UiError?, diag: DiagnosticsPanelState ->
+    /**
+     * Reactive database stream driven by [_currentDayStartMillis] so crossing midnight
+     * automatically shifts the Room query window and refreshes TODAY/TOMORROW boundaries.
+     */
+    private val _upcomingEventsFlow = _currentDayStartMillis
+        .flatMapLatest { dayStart ->
+            repository.getUpcomingEventsFlow(dayStart)
+                .onStart { emit(emptyList()) }
+                .catch { throwable ->
+                    AppLogger.e(AppLogger.TAG_VM, "Database event stream error", throwable)
+                    _uiError.value = UiError.SyncFailed("Failed reading cached calendar events.")
+                    emit(emptyList())
+                }
+        }
+
+    /**
+     * Dedicated filtering pipeline offloaded to [Dispatchers.Default] and decoupled from
+     * dialog/bottom-sheet toggles so opening modals never re-filters the event list.
+     */
+    private val _filteredAgendaFlow = combine(
+        _upcomingEventsFlow,
+        preferencesManager.preferencesFlow,
+        _searchQuery,
+        _activeFilterCategory,
+        _currentDayStartMillis
+    ) { events, prefs, search, filterCategory, dayStart ->
+        val nowMillis = maxOf(System.currentTimeMillis(), dayStart)
         val prefFiltered = CalendarRepository.filterEventsForPreferences(
             events = events,
-            prefs = syncInfo.widgetPreferences
+            prefs = prefs,
+            nowMillis = nowMillis
         )
-
+        val trimmedSearch = search.trim()
         val categoryAndSearchFiltered = prefFiltered.filter { event ->
-            val matchesSearch = filters.search.isBlank() ||
-                event.title.contains(filters.search, ignoreCase = true) ||
-                (event.location?.contains(filters.search, ignoreCase = true) == true) ||
-                (event.description?.contains(filters.search, ignoreCase = true) == true)
+            val matchesSearch = trimmedSearch.isEmpty() ||
+                event.title.contains(trimmedSearch, ignoreCase = true) ||
+                (event.location?.contains(trimmedSearch, ignoreCase = true) == true) ||
+                (event.description?.contains(trimmedSearch, ignoreCase = true) == true)
 
-            val matchesCategory = when (filters.category) {
-                "All" -> true
-                "Today" -> event.dayHeader == "TODAY"
-                "Tomorrow" -> event.dayHeader == "TOMORROW"
-                "All Day" -> event.isAllDay
-                else -> event.calendarId.equals(filters.category, ignoreCase = true)
+            val matchesCategory = when (filterCategory) {
+                AgendaFilterCategory.All -> true
+                AgendaFilterCategory.Today -> CalendarDateFormatter.isToday(event.startMillis, nowMillis)
+                AgendaFilterCategory.Tomorrow -> CalendarDateFormatter.isTomorrow(event.startMillis, nowMillis)
+                AgendaFilterCategory.AllDay -> event.isAllDay
+                is AgendaFilterCategory.CalendarSource ->
+                    event.calendarId.equals(filterCategory.displayName, ignoreCase = true)
             }
-
             matchesSearch && matchesCategory
         }
 
-        val finalFiltered = CalendarRepository.prepareDayHeaders(categoryAndSearchFiltered)
+        FilteredAgendaPayload(
+            prefFilteredEvents = prefFiltered,
+            finalFilteredEvents = CalendarRepository.prepareDayHeaders(categoryAndSearchFiltered, nowMillis),
+            searchQuery = search,
+            filterCategory = filterCategory
+        )
+    }.flowOn(Dispatchers.Default)
 
+    private val _auxPanelsFlow = combine(
+        _modalState,
+        _uiError,
+        _diagnosticsState,
+        _updateCheckState
+    ) { modal, error, diag, updateState ->
+        AuxPanels(modal, error, diag, updateState)
+    }
+
+    private data class AuxPanels(
+        val modal: ModalUiState,
+        val error: UiError?,
+        val diagnostics: DiagnosticsPanelState,
+        val updateState: UpdateCheckState
+    )
+
+    val uiState: StateFlow<CalendarUiState> = combine(
+        _filteredAgendaFlow,
+        _syncInfoFlow,
+        _auxPanelsFlow
+    ) { agenda, syncInfo, aux ->
         CalendarUiState(
-            events = prefFiltered,
-            filteredEvents = finalFiltered,
+            events = agenda.prefFilteredEvents,
+            filteredEvents = agenda.finalFilteredEvents,
             widgetPreferences = syncInfo.widgetPreferences,
             isSyncing = syncInfo.isSyncing,
             isFetching = syncInfo.isSyncing,
@@ -246,16 +359,20 @@ class CalendarViewModel(
             hasCalendarPermission = syncInfo.hasCalendarPermission,
             syncedAccountName = syncInfo.syncedAccountName,
             availableCalendars = syncInfo.availableCalendars,
-            searchQuery = filters.search,
-            activeCategory = filters.category,
-            isAddEventDialogOpen = filters.isAddOpen,
-            editingEvent = filters.editingEvent,
-            selectedEventForDetails = filters.selectedEvent,
-            error = error,
-            isDiagnosticsSheetOpen = diag.isOpen,
-            isRunningDiagnostics = diag.isRunning,
-            isRepairingSync = diag.isRepairing,
-            syncDiagnostics = diag.snapshot
+            searchQuery = agenda.searchQuery,
+            activeCategory = agenda.filterCategory.canonicalKey,
+            activeFilterCategory = agenda.filterCategory,
+            isAddEventDialogOpen = aux.modal.isAddOpen,
+            editingEvent = aux.modal.editingEvent,
+            selectedEventForDetails = aux.modal.selectedEvent,
+            error = aux.error,
+            isDiagnosticsSheetOpen = aux.diagnostics.isOpen,
+            isRunningDiagnostics = aux.diagnostics.isRunning,
+            isRepairingSync = aux.diagnostics.isRepairing,
+            syncDiagnostics = aux.diagnostics.snapshot,
+            isAboutSheetOpen = aux.modal.isAboutOpen,
+            isPinChooserOpen = aux.modal.isPinChooserOpen,
+            updateCheckState = aux.updateState
         )
     }.stateIn(
         scope = viewModelScope,
@@ -278,15 +395,34 @@ class CalendarViewModel(
         }
     }
 
+    /**
+     * Checks whether the local calendar date rolled over (e.g., past midnight or timezone changed)
+     * and updates [_currentDayStartMillis] so reactive queries & headers stay accurate.
+     */
+    fun refreshDayBoundaryIfNeeded(nowMillis: Long = System.currentTimeMillis()): Boolean {
+        val latestDayStart = CalendarDateFormatter.getStartOfTodayMillis(nowMillis)
+        if (latestDayStart != _currentDayStartMillis.value) {
+            AppLogger.d(AppLogger.TAG_VM, "Day boundary changed -> refreshing upcoming schedule window")
+            _currentDayStartMillis.value = latestDayStart
+            return true
+        }
+        return false
+    }
+
     fun onSearchQueryChanged(query: String) {
         _searchQuery.value = query
     }
 
     fun onCategorySelected(category: String) {
-        _activeCategory.value = category
+        _activeFilterCategory.value = AgendaFilterCategory.fromKey(category)
+    }
+
+    fun onFilterCategorySelected(category: AgendaFilterCategory) {
+        _activeFilterCategory.value = category
     }
 
     fun onSyncNow() {
+        refreshDayBoundaryIfNeeded()
         performSync(forceRefresh = true, notifyOnFailure = true)
     }
 
@@ -349,26 +485,78 @@ class CalendarViewModel(
     }
 
     fun onLifecycleResume() {
+        val rolledOver = refreshDayBoundaryIfNeeded()
         val now = System.currentTimeMillis()
-        if (now - lastResumeSyncMillis < 2_000L) return
+        if (!rolledOver && now - lastResumeSyncMillis < 2_000L) return
         lastResumeSyncMillis = now
 
         repository.updatePermissionState()
         if (repository.checkCalendarPermission()) {
             startObservingProviderChanges()
-            performSync(forceRefresh = false, notifyOnFailure = false)
+            performSync(forceRefresh = rolledOver, notifyOnFailure = false)
         } else if (_diagnosticsState.value.isOpen) {
             runDiagnostics()
         }
     }
 
     fun openDiagnosticsSheet() {
+        _modalState.value = _modalState.value.copy(isAboutOpen = false)
         _diagnosticsState.value = _diagnosticsState.value.copy(isOpen = true)
         runDiagnostics()
     }
 
     fun closeDiagnosticsSheet() {
         _diagnosticsState.value = _diagnosticsState.value.copy(isOpen = false)
+    }
+
+    fun openAboutSheet() {
+        _modalState.value = _modalState.value.copy(isAboutOpen = true)
+    }
+
+    fun closeAboutSheet() {
+        _modalState.value = _modalState.value.copy(isAboutOpen = false)
+    }
+
+    fun openPinWidgetChooser() {
+        _modalState.value = _modalState.value.copy(isPinChooserOpen = true)
+    }
+
+    fun closePinWidgetChooser() {
+        _modalState.value = _modalState.value.copy(isPinChooserOpen = false)
+    }
+
+    fun checkForUpdates(
+        currentVersion: String = BuildConfig.VERSION_NAME,
+        repositorySlug: String = BuildConfig.GITHUB_REPOSITORY
+    ) {
+        viewModelScope.launch(coroutineExceptionHandler) {
+            _updateCheckState.value = UpdateCheckState.Checking
+            val checker = if (currentVersion == BuildConfig.VERSION_NAME && repositorySlug == BuildConfig.GITHUB_REPOSITORY) {
+                updateChecker
+            } else {
+                AppUpdateChecker(currentVersionName = currentVersion, repositorySlug = repositorySlug)
+            }
+            when (val result = checker.checkForUpdates()) {
+                is UpdateCheckResult.UpToDate -> {
+                    _updateCheckState.value = UpdateCheckState.UpToDate(result.currentVersion)
+                }
+                is UpdateCheckResult.UpdateAvailable -> {
+                    _updateCheckState.value = UpdateCheckState.UpdateAvailable(
+                        currentVersion = result.currentVersion,
+                        latestVersion = result.latestVersion,
+                        releaseUrl = result.releaseUrl,
+                        releaseName = "v${result.latestVersion}",
+                        releaseNotes = result.releaseNotes
+                    )
+                }
+                is UpdateCheckResult.NotConfigured -> {
+                    _updateCheckState.value = UpdateCheckState.NotConfigured
+                }
+                is UpdateCheckResult.Error -> {
+                    _updateCheckState.value = UpdateCheckState.Error(result.message)
+                }
+            }
+        }
     }
 
     fun runDiagnostics() {
@@ -436,7 +624,7 @@ class CalendarViewModel(
             showPastEvents = true
         )
         updateWidgetPreferences(updated)
-        _activeCategory.value = "All"
+        _activeFilterCategory.value = AgendaFilterCategory.All
         _searchQuery.value = ""
         runDiagnostics()
     }
@@ -458,35 +646,41 @@ class CalendarViewModel(
     }
 
     fun openAddEventDialog() {
-        _editingEvent.value = null
-        _isAddDialogOpen.value = true
+        _modalState.value = _modalState.value.copy(
+            editingEvent = null,
+            isAddOpen = true
+        )
     }
 
     fun openEditEventDialog(event: EventEntity) {
-        _selectedEvent.value = null
-        _editingEvent.value = event
-        _isAddDialogOpen.value = true
+        _modalState.value = _modalState.value.copy(
+            selectedEvent = null,
+            editingEvent = event,
+            isAddOpen = true
+        )
     }
 
     fun closeAddEventDialog() {
-        _isAddDialogOpen.value = false
-        _editingEvent.value = null
+        _modalState.value = _modalState.value.copy(
+            isAddOpen = false,
+            editingEvent = null
+        )
     }
 
     fun selectEvent(event: EventEntity?) {
-        _selectedEvent.value = event
+        _modalState.value = _modalState.value.copy(selectedEvent = event)
     }
 
     fun openEventById(eventId: String) {
         val inMemory = uiState.value.events.find { it.id == eventId }
         if (inMemory != null) {
-            _selectedEvent.value = inMemory
+            _modalState.value = _modalState.value.copy(selectedEvent = inMemory)
             return
         }
         viewModelScope.launch(coroutineExceptionHandler) {
             val fromDb = repository.getEventById(eventId)
             if (fromDb != null) {
-                _selectedEvent.value = fromDb
+                _modalState.value = _modalState.value.copy(selectedEvent = fromDb)
             } else {
                 AppLogger.w(AppLogger.TAG_VM, "Requested event id=$eventId not found")
             }
@@ -518,8 +712,7 @@ class CalendarViewModel(
                 )
             ) {
                 is OperationResult.Success -> {
-                    _isAddDialogOpen.value = false
-                    _editingEvent.value = null
+                    _modalState.value = _modalState.value.copy(isAddOpen = false, editingEvent = null)
                     if (result.data.isOfflineCreated && !repository.checkWriteCalendarPermission()) {
                         _uiEvents.tryEmit(
                             UiEvent.ShowSnackbar(
@@ -567,8 +760,7 @@ class CalendarViewModel(
                 )
             ) {
                 is OperationResult.Success -> {
-                    _isAddDialogOpen.value = false
-                    _editingEvent.value = null
+                    _modalState.value = _modalState.value.copy(isAddOpen = false, editingEvent = null)
                 }
                 is OperationResult.Failure -> {
                     val err = mapAppError(result.error, isSyncOperation = false)
@@ -584,8 +776,8 @@ class CalendarViewModel(
             _uiError.value = null
             when (val result = repository.deleteEvent(id)) {
                 is OperationResult.Success -> {
-                    if (_selectedEvent.value?.id == id) {
-                        _selectedEvent.value = null
+                    if (_modalState.value.selectedEvent?.id == id) {
+                        _modalState.value = _modalState.value.copy(selectedEvent = null)
                     }
                 }
                 is OperationResult.Failure -> {
@@ -597,10 +789,18 @@ class CalendarViewModel(
         }
     }
 
-    fun pinWidgetToHomeScreen(context: Context) {
+    fun pinWidgetToHomeScreen(
+        context: Context,
+        widgetType: WidgetPinType = WidgetPinType.CLASSIC
+    ) {
+        closePinWidgetChooser()
         try {
             val appWidgetManager = AppWidgetManager.getInstance(context)
-            val provider = ComponentName(context, CalendarAgendaWidgetProvider::class.java)
+            val providerClass = when (widgetType) {
+                WidgetPinType.GLANCE -> CalendarGlanceWidgetReceiver::class.java
+                WidgetPinType.CLASSIC -> CalendarAgendaWidgetProvider::class.java
+            }
+            val provider = ComponentName(context, providerClass)
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 if (appWidgetManager.isRequestPinAppWidgetSupported) {
@@ -609,7 +809,7 @@ class CalendarViewModel(
                     }
                     val successCallback = PendingIntent.getBroadcast(
                         context,
-                        99,
+                        if (widgetType == WidgetPinType.GLANCE) 100 else 99,
                         callbackIntent,
                         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
                     )

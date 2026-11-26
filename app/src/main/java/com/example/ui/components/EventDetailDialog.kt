@@ -49,14 +49,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.data.model.EventEntity
-import com.example.data.repository.CalendarRepository
 import com.example.util.AppLogger
+import com.example.util.CalendarDateFormatter
+import com.example.util.LogSanitizer
 import com.example.util.rememberEventColorScheme
 
 @Composable
@@ -108,14 +110,17 @@ fun EventDetailDialog(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (event.dayHeader.isNotEmpty()) {
+                    if (event.dayHeader.isNotEmpty() || event.startMillis > 0L) {
+                        val localizedDay = remember(event.startMillis, context) {
+                            CalendarDateFormatter.formatLocalizedDayHeader(context, event.startMillis)
+                        }
                         Surface(
                             shape = RoundedCornerShape(8.dp),
                             color = colorScheme.badgeBackground,
                             border = BorderStroke(0.5.dp, colorScheme.badgeBorder)
                         ) {
                             Text(
-                                text = event.dayHeader,
+                                text = localizedDay,
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = colorScheme.badgeText,
@@ -151,12 +156,12 @@ fun EventDetailDialog(
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Repeat,
-                                    contentDescription = "Recurring event",
+                                    contentDescription = stringResource(R.string.detail_recurring_desc),
                                     tint = MaterialTheme.colorScheme.onSecondaryContainer,
                                     modifier = Modifier.size(12.dp)
                                 )
                                 Text(
-                                    text = "Recurring",
+                                    text = stringResource(R.string.detail_recurring_badge),
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSecondaryContainer
                                 )
@@ -176,10 +181,11 @@ fun EventDetailDialog(
                         tint = colorScheme.timeIconTint,
                         modifier = Modifier.size(20.dp)
                     )
-                    val timeStr = CalendarRepository.formatFullDateTime(
-                        event.startMillis,
-                        event.endMillis,
-                        event.isAllDay
+                    val timeStr = CalendarDateFormatter.formatFullDateTime(
+                        startMillis = event.startMillis,
+                        endMillis = event.endMillis,
+                        isAllDay = event.isAllDay,
+                        context = context
                     )
                     Text(
                         text = timeStr,
@@ -206,14 +212,22 @@ fun EventDetailDialog(
                                             }
                                             context.startActivity(intent)
                                         } catch (e: ActivityNotFoundException) {
-                                            AppLogger.w(AppLogger.TAG_UI, "No app available to open link: $extractedLink", e)
+                                            AppLogger.w(
+                                                AppLogger.TAG_UI,
+                                                "No app available to open link for event id=${event.id} (${LogSanitizer.sanitize(extractedLink)})",
+                                                e
+                                            )
                                             Toast.makeText(
                                                 context,
                                                 context.getString(R.string.msg_open_link_failed),
                                                 Toast.LENGTH_SHORT
                                             ).show()
                                         } catch (e: SecurityException) {
-                                            AppLogger.w(AppLogger.TAG_UI, "SecurityException opening link: $extractedLink", e)
+                                            AppLogger.w(
+                                                AppLogger.TAG_UI,
+                                                "SecurityException opening link for event id=${event.id} (${LogSanitizer.sanitize(extractedLink)})",
+                                                e
+                                            )
                                             Toast.makeText(
                                                 context,
                                                 context.getString(R.string.msg_open_link_failed),
@@ -282,7 +296,7 @@ fun EventDetailDialog(
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Edit", fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.action_edit), fontWeight = FontWeight.SemiBold)
                     }
 
                     Button(
@@ -335,7 +349,12 @@ fun EventDetailDialog(
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Open App", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            text = stringResource(R.string.detail_action_open_gcal),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1
+                        )
                     }
                 }
 
@@ -352,9 +371,9 @@ fun EventDetailDialog(
                         ) {
                             Text(
                                 text = if (event.isRecurring) {
-                                    "This is a recurring event. Deleting it will remove the series from your calendar."
+                                    stringResource(R.string.detail_delete_recurring_message)
                                 } else {
-                                    "Delete this event from your calendar?"
+                                    stringResource(R.string.detail_delete_confirm_message, event.title)
                                 },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onErrorContainer,
@@ -365,7 +384,7 @@ fun EventDetailDialog(
                                     onClick = { confirmingDelete = false },
                                     modifier = Modifier.weight(1f)
                                 ) {
-                                    Text("Keep")
+                                    Text(stringResource(R.string.action_keep))
                                 }
                                 Button(
                                     onClick = {
@@ -380,7 +399,7 @@ fun EventDetailDialog(
                                         .weight(1f)
                                         .testTag("confirm_delete_event_btn")
                                 ) {
-                                    Text("Delete")
+                                    Text(stringResource(R.string.detail_action_confirm_delete))
                                 }
                             }
                         }
@@ -393,7 +412,7 @@ fun EventDetailDialog(
                 onClick = onDismiss,
                 modifier = Modifier.testTag("close_event_detail_btn")
             ) {
-                Text("Close")
+                Text(stringResource(R.string.action_close))
             }
         },
         dismissButton = {
@@ -409,7 +428,7 @@ fun EventDetailDialog(
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Delete")
+                    Text(stringResource(R.string.detail_action_confirm_delete))
                 }
             }
         }

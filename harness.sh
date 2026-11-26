@@ -33,12 +33,25 @@ REQUIRED_FILES=(
     "app/src/main/java/com/example/widget/CalendarGlanceWidgetReceiver.kt"
     "app/src/main/java/com/example/worker/CalendarSyncWorker.kt"
     "app/src/main/java/com/example/worker/CalendarSyncScheduler.kt"
+    "app/src/main/res/xml/locales_config.xml"
+    "app/src/main/res/values/strings.xml"
+    "app/src/main/res/values-es/strings.xml"
+    "app/src/main/res/values-fr/strings.xml"
+    "app/src/main/res/values-de/strings.xml"
     "version.properties"
+    "scripts/bump-version.sh"
+    "README.md"
+    "CONTRIBUTING.md"
+    "SECURITY.md"
+    "PRIVACY.md"
+    "LICENSE"
     "CHANGELOG.md"
     "docs/RELEASE.md"
     "docs/TESTING.md"
+    ".github/CODEOWNERS"
     ".github/workflows/ci.yml"
     ".github/workflows/release.yml"
+    ".github/workflows/security.yml"
     "product.md"
     "tasks.md"
     "AGENTS.md"
@@ -93,7 +106,14 @@ if [ -n "$API_KEY_MATCHES" ]; then
     echo "$API_KEY_MATCHES"
     exit 1
 fi
-echo -e "${GREEN}✓ Static safety, zero-mockup, and logging checks passed.${NC}"
+
+RAW_LOG_MATCHES=$(grep -rnE "android\.util\.Log\." app/src/main --exclude="AppLogger.kt" || true)
+if [ -n "$RAW_LOG_MATCHES" ]; then
+    echo -e "${RED}ERROR: Found raw android.util.Log calls outside AppLogger.kt (use AppLogger instead):${NC}"
+    echo "$RAW_LOG_MATCHES"
+    exit 1
+fi
+echo -e "${GREEN}✓ Static safety, zero-mockup, i18n, and logging checks passed.${NC}"
 
 if [ "$STATIC_ONLY" = true ]; then
     echo -e "\n${GREEN}✓ Static-only verification completed successfully.${NC}"

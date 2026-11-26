@@ -1,25 +1,35 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# R8 / ProGuard rules for Agenda Widget release builds
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# Preserve line numbers for crash diagnostics while anonymizing source filenames
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
-
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
-
+# Jetpack Glance ActionCallback implementations are instantiated reflectively by Glance
 -keep class * implements androidx.glance.appwidget.action.ActionCallback {
     public <init>();
 }
+
+# Glance AppWidget receivers & widgets
+-keep class com.example.widget.CalendarGlanceWidget { *; }
+-keep class com.example.widget.CalendarGlanceWidgetReceiver { *; }
+
+# Classic AppWidgetProvider & RemoteViewsService
+-keep class com.example.widget.CalendarAgendaWidgetProvider { *; }
+-keep class com.example.widget.CalendarAgendaWidgetService { *; }
+
+# WorkManager CoroutineWorker instantiated via reflection
+-keep class com.example.worker.CalendarSyncWorker {
+    public <init>(android.content.Context, androidx.work.WorkerParameters);
+}
+
+# Room Database, Entities, and DAOs
+-keep class * extends androidx.room.RoomDatabase
+-keep @androidx.room.Entity class *
+-keep @androidx.room.Dao interface *
+-keep class com.example.data.db.AppDatabase_Impl { *; }
+-keep class com.example.data.dao.EventDao_Impl { *; }
+
+# Keep sealed error & update result metadata intact for diagnostics
+-keep class com.example.data.model.AppError** { *; }
+-keep class com.example.data.model.OperationResult** { *; }
+-keep class com.example.data.update.SemVer { *; }

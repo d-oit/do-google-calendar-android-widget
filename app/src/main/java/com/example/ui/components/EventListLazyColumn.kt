@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.R
 import com.example.data.model.EventEntity
+import com.example.ui.AgendaFilterCategory
 import com.example.ui.CalendarViewModel
 
 /**
@@ -87,12 +88,16 @@ fun EventListLazyColumn(
     onSyncNow: () -> Unit = { viewModel.onSyncNow() }
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val timeframe = when (uiState.activeCategory) {
-        "Today" -> "today"
-        "Tomorrow" -> "tomorrow"
-        "All Day" -> "all-day events"
-        "All" -> if (uiState.widgetPreferences.daysHorizon == 1) "today" else "the next ${uiState.widgetPreferences.daysHorizon} days"
-        else -> uiState.activeCategory
+    val timeframe = when (val active = uiState.activeFilterCategory) {
+        AgendaFilterCategory.Today -> stringResource(R.string.filter_today)
+        AgendaFilterCategory.Tomorrow -> stringResource(R.string.filter_tomorrow)
+        AgendaFilterCategory.AllDay -> stringResource(R.string.filter_all_day)
+        AgendaFilterCategory.All -> if (uiState.widgetPreferences.daysHorizon == 1) {
+            stringResource(R.string.filter_today)
+        } else {
+            stringResource(R.string.widget_customizer_horizon_days, uiState.widgetPreferences.daysHorizon)
+        }
+        is AgendaFilterCategory.CalendarSource -> active.displayName
     }
 
     val hiddenOutsideFilter = uiState.syncDiagnostics?.let { diag ->
@@ -291,13 +296,24 @@ fun FriendlyEmptyEventsState(
                 }
             }
 
-            // Headline
+            // Headline (locale-safe match against localized filter labels + English fallback)
+            val todayLabel = stringResource(R.string.filter_today)
+            val tomorrowLabel = stringResource(R.string.filter_tomorrow)
+            val allDayLabel = stringResource(R.string.filter_all_day)
+            val isTodayFrame = timeframe.equals(todayLabel, ignoreCase = true) ||
+                timeframe.equals("today", ignoreCase = true)
+            val isTomorrowFrame = timeframe.equals(tomorrowLabel, ignoreCase = true) ||
+                timeframe.equals("tomorrow", ignoreCase = true)
+            val isAllDayFrame = timeframe.equals(allDayLabel, ignoreCase = true) ||
+                timeframe.equals("all-day events", ignoreCase = true) ||
+                timeframe.equals("all day", ignoreCase = true)
+
             val titleText = when {
-                isSearchActive -> "No matching events"
-                timeframe.equals("today", ignoreCase = true) -> "All clear for today!"
-                timeframe.equals("tomorrow", ignoreCase = true) -> "Nothing scheduled tomorrow"
-                timeframe.equals("all-day events", ignoreCase = true) -> "No all-day events"
-                else -> "No upcoming events scheduled"
+                isSearchActive -> stringResource(R.string.agenda_empty_search_title)
+                isTodayFrame -> stringResource(R.string.agenda_empty_today_title)
+                isTomorrowFrame -> stringResource(R.string.agenda_empty_tomorrow_title)
+                isAllDayFrame -> stringResource(R.string.agenda_empty_all_day_title)
+                else -> stringResource(R.string.agenda_empty_title)
             }
 
             Text(
@@ -311,11 +327,11 @@ fun FriendlyEmptyEventsState(
 
             // Friendly description
             val subtitleText = when {
-                isSearchActive -> "We couldn't find any events matching \"$searchQuery\". Try checking for typos or searching a different keyword."
-                timeframe.equals("today", ignoreCase = true) -> "You have no upcoming events for today. Enjoy your free time or schedule something new!"
-                timeframe.equals("tomorrow", ignoreCase = true) -> "Your calendar for tomorrow is completely open. Plan ahead by adding an event below."
-                timeframe.equals("all-day events", ignoreCase = true) -> "There are no all-day events scheduled in the selected horizon."
-                else -> "Your calendar is clear for $timeframe. Add an event or sync with your Google accounts."
+                isSearchActive -> stringResource(R.string.agenda_empty_search_query_subtitle, searchQuery)
+                isTodayFrame -> stringResource(R.string.agenda_empty_today_subtitle)
+                isTomorrowFrame -> stringResource(R.string.agenda_empty_tomorrow_subtitle)
+                isAllDayFrame -> stringResource(R.string.agenda_empty_all_day_subtitle)
+                else -> stringResource(R.string.agenda_empty_horizon_subtitle, timeframe)
             }
 
             Text(
@@ -353,9 +369,13 @@ fun FriendlyEmptyEventsState(
                     )
 
                     val statusLabel = when {
-                        !hasCalendarPermission -> "Calendar permission required to sync Google accounts"
-                        availableCalendarsCount > 0 -> "Synced with ${syncedAccountName ?: "$availableCalendarsCount Google Calendars"}"
-                        else -> "Local calendar active (Add Google account in Android Settings)"
+                        !hasCalendarPermission -> stringResource(R.string.status_permission_needed_sync)
+                        availableCalendarsCount > 0 -> {
+                            val accountDisplay = syncedAccountName?.takeIf { it.isNotBlank() }
+                                ?: stringResource(R.string.status_synced_calendars_count, availableCalendarsCount)
+                            stringResource(R.string.status_synced_with_account, accountDisplay)
+                        }
+                        else -> stringResource(R.string.status_local_calendar_active)
                     }
 
                     Text(
@@ -390,7 +410,7 @@ fun FriendlyEmptyEventsState(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "Add Event",
+                        text = stringResource(R.string.action_add_event),
                         fontWeight = FontWeight.SemiBold
                     )
                 }
@@ -410,7 +430,7 @@ fun FriendlyEmptyEventsState(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "Sync Now",
+                        text = stringResource(R.string.agenda_action_sync_now),
                         fontWeight = FontWeight.Medium
                     )
                 }

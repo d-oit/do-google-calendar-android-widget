@@ -40,8 +40,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.R
 import com.example.data.pref.WidgetColorTheme
 import com.example.data.pref.WidgetDensity
 import com.example.data.pref.WidgetPreferences
@@ -91,12 +93,12 @@ fun WidgetCustomizerControls(
                 Spacer(modifier = Modifier.width(10.dp))
                 Column {
                     Text(
-                        text = "Widget Customization Studio",
+                        text = stringResource(R.string.widget_customizer_title),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "Customize opacity, theme, and calendar sources",
+                        text = stringResource(R.string.widget_customizer_subtitle),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -119,19 +121,20 @@ fun WidgetCustomizerControls(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "Background Opacity",
+                            text = stringResource(R.string.widget_customizer_opacity_label),
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.SemiBold
                         )
                     }
+                    val opacityQualifier = when {
+                        preferences.opacityPercent == 0 -> stringResource(R.string.widget_opacity_clear)
+                        preferences.opacityPercent <= 25 -> stringResource(R.string.widget_opacity_glass)
+                        preferences.opacityPercent <= 55 -> stringResource(R.string.widget_opacity_translucent)
+                        preferences.opacityPercent <= 85 -> stringResource(R.string.widget_opacity_frosted)
+                        else -> stringResource(R.string.widget_opacity_solid)
+                    }
                     Text(
-                        text = "${preferences.opacityPercent}% " + when {
-                            preferences.opacityPercent == 0 -> "(Clear)"
-                            preferences.opacityPercent <= 25 -> "(Glass)"
-                            preferences.opacityPercent <= 55 -> "(Translucent)"
-                            preferences.opacityPercent <= 85 -> "(Frosted)"
-                            else -> "(Solid)"
-                        },
+                        text = "${stringResource(R.string.widget_customizer_opacity_value, preferences.opacityPercent)} ($opacityQualifier)",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.Bold
@@ -164,7 +167,7 @@ fun WidgetCustomizerControls(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "Color Scheme & Theme",
+                        text = stringResource(R.string.widget_customizer_theme_label),
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -180,7 +183,7 @@ fun WidgetCustomizerControls(
                         FilterChip(
                             selected = isSelected,
                             onClick = { onUpdatePreferences(preferences.copy(colorTheme = theme)) },
-                            label = { Text(theme.displayName) },
+                            label = { Text(stringResource(theme.labelResId)) },
                             leadingIcon = {
                                 Box(
                                     modifier = Modifier
@@ -205,7 +208,7 @@ fun WidgetCustomizerControls(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "Typography Density",
+                        text = stringResource(R.string.widget_customizer_density_label),
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -220,7 +223,7 @@ fun WidgetCustomizerControls(
                         FilterChip(
                             selected = isSelected,
                             onClick = { onUpdatePreferences(preferences.copy(density = density)) },
-                            label = { Text(density.displayName) },
+                            label = { Text(stringResource(density.labelResId)) },
                             modifier = Modifier
                                 .weight(1f)
                                 .testTag("density_chip_${density.id}")
@@ -240,7 +243,7 @@ fun WidgetCustomizerControls(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "Days to Display",
+                        text = stringResource(R.string.widget_customizer_horizon_label),
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -251,15 +254,13 @@ fun WidgetCustomizerControls(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    listOf(
-                        1 to "Today",
-                        2 to "2 Days",
-                        3 to "3 Days",
-                        7 to "7 Days",
-                        14 to "14 Days",
-                        30 to "30 Days"
-                    ).forEach { (days, label) ->
+                    listOf(1, 2, 3, 7, 14, 30).forEach { days ->
                         val isSelected = preferences.daysHorizon == days
+                        val label = if (days == 1) {
+                            stringResource(R.string.filter_today)
+                        } else {
+                            stringResource(R.string.widget_customizer_horizon_days, days)
+                        }
                         FilterChip(
                             selected = isSelected,
                             onClick = { onUpdatePreferences(preferences.copy(daysHorizon = days)) },
@@ -280,13 +281,17 @@ fun WidgetCustomizerControls(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Calendar Sources",
+                        text = stringResource(R.string.widget_customizer_calendars_label),
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold
                     )
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = if (preferences.isAllCalendarsSelected) "All Calendars" else "Custom Filter",
+                            text = if (preferences.isAllCalendarsSelected) {
+                                stringResource(R.string.widget_customizer_calendars_all)
+                            } else {
+                                stringResource(R.string.widget_customizer_custom_filter)
+                            },
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.SemiBold
@@ -324,14 +329,14 @@ fun WidgetCustomizerControls(
                     ) {
                         if (availableCalendars.isEmpty()) {
                             Text(
-                                text = "Grant Calendar permissions to select from your device's Google accounts.",
+                                text = stringResource(R.string.widget_customizer_no_cals_permission),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         } else {
                             if (preferences.selectedCalendarIds.isEmpty()) {
                                 Text(
-                                    text = "No calendars selected — enable at least one calendar to show events.",
+                                    text = stringResource(R.string.widget_customizer_no_cals_selected),
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.error,
                                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
@@ -395,7 +400,7 @@ fun WidgetCustomizerControls(
             // 6. Display Toggles
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
-                    text = "Display Toggles",
+                    text = stringResource(R.string.widget_customizer_display_toggles),
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -407,7 +412,11 @@ fun WidgetCustomizerControls(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Show event locations / video links", style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        text = stringResource(R.string.widget_customizer_show_locations),
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.weight(1f)
+                    )
                     Switch(
                         checked = preferences.showLocations,
                         onCheckedChange = { onUpdatePreferences(preferences.copy(showLocations = it)) },
@@ -422,7 +431,11 @@ fun WidgetCustomizerControls(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Show date group headers (TODAY, TOMORROW)", style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        text = stringResource(R.string.widget_customizer_show_day_headers),
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.weight(1f)
+                    )
                     Switch(
                         checked = preferences.showDayHeaders,
                         onCheckedChange = { onUpdatePreferences(preferences.copy(showDayHeaders = it)) },
@@ -437,7 +450,11 @@ fun WidgetCustomizerControls(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Show past events of today", style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        text = stringResource(R.string.widget_customizer_show_past),
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.weight(1f)
+                    )
                     Switch(
                         checked = preferences.showPastEvents,
                         onCheckedChange = { onUpdatePreferences(preferences.copy(showPastEvents = it)) },

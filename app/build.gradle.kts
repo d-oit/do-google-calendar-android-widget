@@ -22,6 +22,10 @@ val appVersionMinor = versionProps.getProperty("VERSION_MINOR", "1").trim().toIn
 val appVersionPatch = versionProps.getProperty("VERSION_PATCH", "0").trim().toInt()
 val appVersionCode = versionProps.getProperty("VERSION_CODE", "1").trim().toInt()
 val appVersionName = "$appVersionMajor.$appVersionMinor.$appVersionPatch"
+val appGithubRepository = versionProps.getProperty("GITHUB_REPOSITORY", "")
+  .trim()
+  .replace("\\", "\\\\")
+  .replace("\"", "\\\"")
 
 android {
   namespace = "com.example"
@@ -33,6 +37,7 @@ android {
     targetSdk = 36
     versionCode = appVersionCode
     versionName = appVersionName
+    buildConfigField("String", "GITHUB_REPOSITORY", "\"$appGithubRepository\"")
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -58,7 +63,8 @@ android {
   buildTypes {
     release {
       isCrunchPngs = false
-      isMinifyEnabled = false
+      isMinifyEnabled = true
+      isShrinkResources = true
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
       // Do not remove or modify this signingConfig assignment. It is necessary for Android apps in
       // AI Studio.

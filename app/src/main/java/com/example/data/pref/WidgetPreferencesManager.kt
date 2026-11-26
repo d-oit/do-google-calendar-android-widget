@@ -5,25 +5,34 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import androidx.annotation.StringRes
 import com.example.R
 import com.example.util.AppLogger
+import com.example.util.RuntimeEnvironment
 import com.example.widget.CalendarAgendaWidgetProvider
 import com.example.widget.GlanceWidgetUpdater
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-enum class WidgetColorTheme(val id: String, val displayName: String, val primaryHex: String) {
-    DYNAMIC("dynamic", "Material You", "#1A73E8"),
-    CLASSIC_BLUE("classic_blue", "Google Blue", "#1A73E8"),
-    DARK_SLATE("dark_slate", "Midnight Dark", "#1E1E1E"),
-    EMERALD("emerald", "Emerald Green", "#137333"),
-    SUNSET("sunset", "Sunset Amber", "#E65100");
+enum class WidgetColorTheme(
+    val id: String,
+    val displayName: String,
+    val primaryHex: String,
+    @StringRes val labelResId: Int
+) {
+    DYNAMIC("dynamic", "Material You", "#1A73E8", R.string.widget_theme_material_you),
+    CLASSIC_BLUE("classic_blue", "Google Blue", "#1A73E8", R.string.widget_theme_classic_blue),
+    DARK_SLATE("dark_slate", "Midnight Dark", "#1E1E1E", R.string.widget_theme_dark_slate),
+    EMERALD("emerald", "Emerald Green", "#137333", R.string.widget_theme_emerald),
+    SUNSET("sunset", "Sunset Amber", "#E65100", R.string.widget_theme_warm_sunset);
 
     companion object {
         fun fromId(id: String): WidgetColorTheme =
@@ -31,10 +40,16 @@ enum class WidgetColorTheme(val id: String, val displayName: String, val primary
     }
 }
 
-enum class WidgetDensity(val id: String, val displayName: String, val titleSp: Float, val timeSp: Float) {
-    COMPACT("compact", "Compact", 12f, 10f),
-    REGULAR("regular", "Regular", 14f, 12f),
-    LARGE("large", "Large", 16f, 13f);
+enum class WidgetDensity(
+    val id: String,
+    val displayName: String,
+    val titleSp: Float,
+    val timeSp: Float,
+    @StringRes val labelResId: Int
+) {
+    COMPACT("compact", "Compact", 12f, 10f, R.string.widget_density_compact),
+    REGULAR("regular", "Regular", 14f, 12f, R.string.widget_density_cozy),
+    LARGE("large", "Large", 16f, 13f, R.string.widget_density_spacious);
 
     companion object {
         fun fromId(id: String): WidgetDensity =
@@ -59,9 +74,12 @@ class WidgetPreferencesManager(private val context: Context) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     private val widgetUpdateExceptionHandler = CoroutineExceptionHandler { _, throwable ->
-        AppLogger.w(AppLogger.TAG_PREFS, "Uncaught exception updating Glance widgets", throwable)
+        AppLogger.w(AppLogger.TAG_PREFS, "Uncaught exception updating widgets", throwable)
     }
     private val widgetUpdateScope = CoroutineScope(SupervisorJob() + Dispatchers.IO + widgetUpdateExceptionHandler)
+
+    @Volatile
+    private var pendingWidgetNotifyJob: Job? = null
 
     private val _preferencesFlow = MutableStateFlow(loadPreferences())
     val preferencesFlow = _preferencesFlow.asStateFlow()
@@ -100,7 +118,7 @@ class WidgetPreferencesManager(private val context: Context) {
             AppLogger.TAG_PREFS,
             "Updated widget prefs: opacity=${newPrefs.opacityPercent}%, theme=${newPrefs.colorTheme.id}, horizon=${newPrefs.daysHorizon}d"
         )
-        notifyWidgetsChanged()
+        notifyWidgetsChanged(debounced = true)
     }
 
     private fun loadPreferences(): WidgetPreferences {
@@ -128,7 +146,32 @@ class WidgetPreferencesManager(private val context: Context) {
         )
     }
 
-    fun notifyWidgetsChanged() {
+    /**
+     * Invalidates Classic RemoteViews widgets and Jetpack Glance widgets.
+     * When [debounced] is true (e.g., slider drags), rapid updates are coalesced over 150ms
+     * on real devices to prevent broadcast storms.
+     */
+    fun notifyWidgetsChanged(debounced: Boolean = false) {
+        if (debounced && !RuntimeEnvironment.isRunningInTestEnvironment) {
+            pendingWidgetNotifyJob?.cancel()
+            pendingWidgetNotifyJob = widgetUpdateScope.launch {
+                delay(WIDGET_DEBOUNCE_MILLIS)
+                dispatchClassicWidgetBroadcast()
+                dispatchGlanceWidgetUpdate()
+            }
+            return
+        }
+
+        pendingWidgetNotifyJob?.cancel()
+        dispatchClassicWidgetBroadcast()
+        if (!RuntimeEnvironment.isRunningInTestEnvironment) {
+            widgetUpdateScope.launch {
+                dispatchGlanceWidgetUpdate()
+            }
+        }
+    }
+
+    private fun dispatchClassicWidgetBroadcast() {
         try {
             val appWidgetManager = AppWidgetManager.getInstance(context)
             val componentName = ComponentName(context, CalendarAgendaWidgetProvider::class.java)
@@ -145,29 +188,20 @@ class WidgetPreferencesManager(private val context: Context) {
         } catch (e: Exception) {
             AppLogger.w(AppLogger.TAG_PREFS, "Failed to notify home screen widgets of changes", e)
         }
-
-        if (!isRunningInTestEnvironment()) {
-            widgetUpdateScope.launch {
-                try {
-                    GlanceWidgetUpdater.updateAllGlanceWidgets(context)
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    AppLogger.w(AppLogger.TAG_PREFS, "Failed refreshing Glance widgets on change", e)
-                }
-            }
-        }
     }
 
-    private fun isRunningInTestEnvironment(): Boolean {
-        return try {
-            Class.forName("org.robolectric.Robolectric") != null
-        } catch (_: ClassNotFoundException) {
-            false
+    private suspend fun dispatchGlanceWidgetUpdate() {
+        try {
+            GlanceWidgetUpdater.updateAllGlanceWidgets(context)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            AppLogger.w(AppLogger.TAG_PREFS, "Failed refreshing Glance widgets on change", e)
         }
     }
 
     companion object {
+        private const val WIDGET_DEBOUNCE_MILLIS = 150L
         private const val PREFS_NAME = "google_calendar_widget_prefs"
         private const val KEY_OPACITY = "pref_widget_opacity"
         private const val KEY_COLOR_THEME = "pref_color_theme"

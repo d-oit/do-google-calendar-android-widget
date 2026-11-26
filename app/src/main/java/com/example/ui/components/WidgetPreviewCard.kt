@@ -60,10 +60,8 @@ import com.example.data.pref.WidgetDensity
 import com.example.data.pref.WidgetPreferences
 import com.example.data.repository.CalendarRepository
 import com.example.util.CalendarColorMapper
+import com.example.util.CalendarDateFormatter
 import com.example.widget.WidgetThemeHelper
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -115,14 +113,14 @@ fun WidgetPreviewCard(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Widgets,
-                            contentDescription = "Widget Preview",
+                            contentDescription = stringResource(R.string.widget_preview_header),
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(18.dp)
                         )
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Live Home Screen Widget",
+                        text = stringResource(R.string.widget_preview_header),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -133,7 +131,7 @@ fun WidgetPreviewCard(
                     color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
                 ) {
                     Text(
-                        text = "${preferences.opacityPercent}% • ${preferences.density.displayName}",
+                        text = "${stringResource(R.string.widget_customizer_opacity_value, preferences.opacityPercent)} • ${stringResource(preferences.density.labelResId)}",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
@@ -192,13 +190,12 @@ fun WidgetPreviewCard(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
 
-                            val dateFormat = remember { SimpleDateFormat("EEEE, MMM d", Locale.getDefault()) }
-                            val todayString = dateFormat.format(Date())
+                            val todayString = CalendarDateFormatter.formatWidgetHeaderDate(isNarrow = false)
                             val syncStatusLabel = remember(lastSyncTime, isSyncing, context) {
                                 if (isSyncing) {
-                                    context.getString(com.example.R.string.widget_sync_in_progress)
+                                    context.getString(R.string.widget_sync_in_progress)
                                 } else {
-                                    CalendarRepository.formatLastSyncIndicator(
+                                    CalendarDateFormatter.formatLastSyncIndicator(
                                         context = context,
                                         lastSyncMillis = lastSyncTime
                                     )
@@ -259,7 +256,7 @@ fun WidgetPreviewCard(
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Add,
-                                        contentDescription = "Add Event",
+                                        contentDescription = stringResource(R.string.action_add_event),
                                         tint = accentColor,
                                         modifier = Modifier.size(16.dp)
                                     )
@@ -364,7 +361,7 @@ fun WidgetPreviewCard(
                                         )
                                     }
                                     Text(
-                                        text = "No upcoming events",
+                                        text = stringResource(R.string.widget_no_events),
                                         color = subtitleColor,
                                         fontSize = 13.sp,
                                         fontWeight = FontWeight.Medium
@@ -388,14 +385,14 @@ fun WidgetPreviewCard(
                             ) {
                                 items(previewEvents, key = { it.id }) { event ->
                                     Column {
-                                        if (event.isFirstOfDay && event.dayHeader.isNotEmpty() && preferences.showDayHeaders) {
+                                        if (event.isFirstOfDay && (event.dayHeader.isNotEmpty() || event.startMillis > 0L) && preferences.showDayHeaders) {
                                             Surface(
                                                 shape = RoundedCornerShape(8.dp),
                                                 color = chipBgColor,
                                                 modifier = Modifier.padding(bottom = 4.dp, top = 2.dp)
                                             ) {
                                                 Text(
-                                                    text = event.dayHeader,
+                                                    text = CalendarDateFormatter.formatLocalizedDayHeader(context, event.startMillis),
                                                     color = accentColor,
                                                     fontSize = 10.sp,
                                                     fontWeight = FontWeight.Bold,
@@ -458,10 +455,11 @@ fun WidgetPreviewCard(
                                                 }
                                             }
 
-                                            val timeStr = CalendarRepository.formatEventTime(
-                                                event.startMillis,
-                                                event.endMillis,
-                                                event.isAllDay
+                                            val timeStr = CalendarDateFormatter.formatEventTime(
+                                                startMillis = event.startMillis,
+                                                endMillis = event.endMillis,
+                                                isAllDay = event.isAllDay,
+                                                context = context
                                             )
 
                                             Text(
@@ -500,7 +498,7 @@ fun WidgetPreviewCard(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Add Widget to Home Screen",
+                    text = stringResource(R.string.widget_customizer_pin_button),
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp
                 )

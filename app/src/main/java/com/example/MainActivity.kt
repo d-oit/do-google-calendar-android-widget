@@ -2,12 +2,17 @@ package com.example
 
 import android.Manifest
 import android.appwidget.AppWidgetManager
+import android.content.BroadcastReceiver
 import android.content.ClipData
+import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.os.PersistableBundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -21,7 +26,6 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -32,14 +36,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -47,19 +49,16 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ViewAgenda
 import androidx.compose.material.icons.filled.Widgets
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarDuration
@@ -89,6 +88,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ViewModel
@@ -96,24 +96,25 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.db.AppDatabase
-import com.example.data.model.EventEntity
 import com.example.data.pref.WidgetPreferencesManager
 import com.example.data.repository.CalendarRepository
 import com.example.data.repository.CalendarSyncDiagnosticsHelper
-import com.example.ui.CalendarUiState
 import com.example.ui.CalendarViewModel
 import com.example.ui.ErrorAction
 import com.example.ui.UiEvent
+import com.example.ui.components.AboutReleaseBottomSheet
 import com.example.ui.components.AddEventDialog
+import com.example.ui.components.AgendaScheduleContent
 import com.example.ui.components.CalendarPermissionRequestCard
 import com.example.ui.components.EventDetailDialog
-import com.example.ui.components.EventListLazyColumn
 import com.example.ui.components.SyncDiagnosticsBottomSheet
 import com.example.ui.components.WidgetCustomizerControls
+import com.example.ui.components.WidgetPinChooserDialog
 import com.example.ui.components.WidgetPreviewCard
 import com.example.ui.components.rememberCalendarPermissionLauncher
-import com.example.ui.theme.MyApplicationTheme
+import com.example.ui.theme.AgendaWidgetTheme
 import com.example.util.AppLogger
+import com.example.util.RuntimeEnvironment
 import com.example.widget.CalendarAgendaWidgetProvider
 import com.example.worker.CalendarSyncScheduler
 
@@ -140,9 +141,9 @@ class MainActivity : ComponentActivity() {
 
         val initialTab = handleIntentExtras(intent)
 
-        if (!isRunningInTestEnvironment()) {
+        if (!RuntimeEnvironment.isRunningInTestEnvironment) {
             setContent {
-                MyApplicationTheme {
+                AgendaWidgetTheme {
                     CalendarMainScreen(
                         viewModel = viewModel,
                         initialTab = initialTab
@@ -204,20 +205,50 @@ fun CalendarMainScreen(
         }
     }
 
-    DisposableEffect(lifecycleOwner, viewModel) {
+    // Lifecycle resume sync & midnight/timezone rollover listener
+    DisposableEffect(lifecycleOwner, viewModel, context) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME && !isRunningInTestEnvironment()) {
+            if (event == Lifecycle.Event.ON_RESUME && !RuntimeEnvironment.isRunningInTestEnvironment) {
                 viewModel.onLifecycleResume()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
+
+        val dateChangeReceiver = object : BroadcastReceiver() {
+            override fun onReceive(ctx: Context?, intent: Intent?) {
+                viewModel.refreshDayBoundaryIfNeeded()
+            }
+        }
+        var receiverRegistered = false
+        if (!RuntimeEnvironment.isRunningInTestEnvironment) {
+            try {
+                val filter = IntentFilter().apply {
+                    addAction(Intent.ACTION_DATE_CHANGED)
+                    addAction(Intent.ACTION_TIME_CHANGED)
+                    addAction(Intent.ACTION_TIMEZONE_CHANGED)
+                }
+                ContextCompat.registerReceiver(
+                    context,
+                    dateChangeReceiver,
+                    filter,
+                    ContextCompat.RECEIVER_NOT_EXPORTED
+                )
+                receiverRegistered = true
+            } catch (e: Exception) {
+                AppLogger.w(AppLogger.TAG_UI, "Unable to register date rollover BroadcastReceiver", e)
+            }
+        }
+
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
+            if (receiverRegistered) {
+                runCatching { context.unregisterReceiver(dateChangeReceiver) }
+            }
         }
     }
 
     LaunchedEffect(Unit) {
-        if (!uiState.hasCalendarPermission && !isRunningInTestEnvironment()) {
+        if (!uiState.hasCalendarPermission && !RuntimeEnvironment.isRunningInTestEnvironment) {
             calendarPermissionLauncher.launch(
                 arrayOf(
                     Manifest.permission.READ_CALENDAR,
@@ -250,7 +281,7 @@ fun CalendarMainScreen(
         }
     }
 
-    val rotationAngle = if (uiState.isSyncing && !isRunningInTestEnvironment()) {
+    val rotationAngle = if (uiState.isSyncing && !RuntimeEnvironment.isRunningInTestEnvironment) {
         val infiniteTransition = rememberInfiniteTransition(label = "sync_rotation")
         val angle by infiniteTransition.animateFloat(
             initialValue = 0f,
@@ -335,7 +366,13 @@ fun CalendarMainScreen(
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.CheckCircle,
-                                    contentDescription = if (uiState.hasCalendarPermission) "Connected" else "Permission needed",
+                                    contentDescription = stringResource(
+                                        if (uiState.hasCalendarPermission) {
+                                            R.string.diagnostics_value_granted
+                                        } else {
+                                            R.string.diagnostics_value_missing
+                                        }
+                                    ),
                                     tint = if (uiState.hasCalendarPermission && uiState.availableCalendars.isNotEmpty()) {
                                         MaterialTheme.colorScheme.tertiary
                                     } else {
@@ -347,7 +384,10 @@ fun CalendarMainScreen(
                                     text = when {
                                         !uiState.hasCalendarPermission -> stringResource(R.string.status_tap_to_connect)
                                         uiState.availableCalendars.isNotEmpty() -> uiState.syncedAccountName
-                                            ?: "${uiState.availableCalendars.size} Calendars Synced"
+                                            ?: stringResource(
+                                                R.string.diagnostics_section_calendars,
+                                                uiState.availableCalendars.size
+                                            )
                                         else -> stringResource(R.string.status_local_calendar)
                                     },
                                     style = MaterialTheme.typography.bodySmall,
@@ -360,6 +400,17 @@ fun CalendarMainScreen(
                     }
                 },
                 actions = {
+                    IconButton(
+                        onClick = { viewModel.openAboutSheet() },
+                        modifier = Modifier.testTag("topbar_about_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = stringResource(R.string.about_open_desc),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
                     IconButton(
                         onClick = { viewModel.openDiagnosticsSheet() },
                         modifier = Modifier.testTag("topbar_diagnostics_button")
@@ -424,11 +475,13 @@ fun CalendarMainScreen(
                         .testTag("dual_pane_container"),
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
+                    // Left scrollable pane: Permission card + Live Widget Preview + Customizer Controls
                     LazyColumn(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
                             .testTag("left_pane_content"),
+                        contentPadding = PaddingValues(bottom = 88.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         item {
@@ -454,25 +507,27 @@ fun CalendarMainScreen(
                                 isSyncing = uiState.isSyncing,
                                 lastSyncTime = uiState.lastSyncTime,
                                 onRefresh = { viewModel.onSyncNow() },
-                                onPinWidget = { viewModel.pinWidgetToHomeScreen(context) },
+                                onPinWidget = { viewModel.openPinWidgetChooser() },
                                 onAddEvent = { viewModel.openAddEventDialog() }
+                            )
+                        }
+
+                        item {
+                            WidgetCustomizerControls(
+                                preferences = uiState.widgetPreferences,
+                                availableCalendars = uiState.availableCalendars,
+                                onUpdatePreferences = { viewModel.updateWidgetPreferences(it) }
                             )
                         }
                     }
 
+                    // Right full-height pane: Dedicated scrollable Agenda Schedule
                     Column(
                         modifier = Modifier
-                            .weight(1.2f)
+                            .weight(1.15f)
                             .fillMaxHeight()
-                            .testTag("right_pane_content"),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                            .testTag("right_pane_content")
                     ) {
-                        WidgetCustomizerControls(
-                            preferences = uiState.widgetPreferences,
-                            availableCalendars = uiState.availableCalendars,
-                            onUpdatePreferences = { viewModel.updateWidgetPreferences(it) }
-                        )
-
                         AgendaScheduleContent(
                             uiState = uiState,
                             onSearchQueryChanged = { viewModel.onSearchQueryChanged(it) },
@@ -483,7 +538,7 @@ fun CalendarMainScreen(
                             onSyncNow = { viewModel.onSyncNow() },
                             onOpenDiagnostics = { viewModel.openDiagnosticsSheet() },
                             onExpandFiltersQuickFix = { viewModel.applyFilterQuickFix() },
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.fillMaxSize()
                         )
                     }
                 }
@@ -564,7 +619,7 @@ fun CalendarMainScreen(
                                     isSyncing = uiState.isSyncing,
                                     lastSyncTime = uiState.lastSyncTime,
                                     onRefresh = { viewModel.onSyncNow() },
-                                    onPinWidget = { viewModel.pinWidgetToHomeScreen(context) },
+                                    onPinWidget = { viewModel.openPinWidgetChooser() },
                                     onAddEvent = { viewModel.openAddEventDialog() }
                                 )
                             }
@@ -659,6 +714,32 @@ fun CalendarMainScreen(
         )
     }
 
+    // Widget Pin Style Chooser (Jetpack Glance vs Classic Scrollable)
+    if (uiState.isPinChooserOpen) {
+        WidgetPinChooserDialog(
+            onDismiss = { viewModel.closePinWidgetChooser() },
+            onSelectWidgetType = { widgetType ->
+                viewModel.pinWidgetToHomeScreen(context, widgetType)
+            }
+        )
+    }
+
+    // About & GitHub Releases Update Sheet
+    if (uiState.isAboutSheetOpen) {
+        AboutReleaseBottomSheet(
+            updateCheckState = uiState.updateCheckState,
+            onDismiss = { viewModel.closeAboutSheet() },
+            onCheckForUpdates = { viewModel.checkForUpdates() },
+            onOpenReleaseUrl = { url ->
+                if (!openSafeHttpsUrl(context, url)) {
+                    viewModel.notifyMessage(context.getString(R.string.msg_open_link_failed), isError = true)
+                }
+            },
+            onOpenDiagnostics = { viewModel.openDiagnosticsSheet() },
+            onOpenAppLanguageSettings = { openAppLanguageSettings(context) }
+        )
+    }
+
     // Calendar Sync Diagnostics & Repair Sheet
     if (uiState.isDiagnosticsSheetOpen) {
         SyncDiagnosticsBottomSheet(
@@ -686,112 +767,9 @@ fun CalendarMainScreen(
                 }
             },
             onCopyReport = { reportText ->
-                copyTextToClipboard(context, reportText)
+                copySensitiveTextToClipboard(context, reportText)
                 viewModel.notifyMessage(context.getString(R.string.diagnostics_report_copied))
             }
-        )
-    }
-}
-
-@Composable
-fun AgendaScheduleContent(
-    uiState: CalendarUiState,
-    onSearchQueryChanged: (String) -> Unit,
-    onCategorySelected: (String) -> Unit,
-    onSelectEvent: (EventEntity) -> Unit,
-    onDeleteEvent: (String) -> Unit,
-    onOpenAddEvent: () -> Unit,
-    onSyncNow: () -> Unit = {},
-    onOpenDiagnostics: (() -> Unit)? = null,
-    onExpandFiltersQuickFix: (() -> Unit)? = null,
-    modifier: Modifier = Modifier
-) {
-    val dynamicCalendarChips = remember(uiState.availableCalendars) {
-        uiState.availableCalendars
-            .map { it.displayName }
-            .distinct()
-            .filter { it.isNotBlank() && it !in listOf("All", "Today", "Tomorrow", "All Day") }
-            .take(3)
-    }
-    val categories = remember(dynamicCalendarChips) {
-        listOf("All", "Today", "Tomorrow", "All Day") + dynamicCalendarChips
-    }
-
-    Column(modifier = modifier.fillMaxSize()) {
-        Spacer(modifier = Modifier.height(12.dp))
-
-        OutlinedTextField(
-            value = uiState.searchQuery,
-            onValueChange = onSearchQueryChanged,
-            placeholder = { Text(stringResource(R.string.search_events_placeholder)) },
-            leadingIcon = {
-                Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            },
-            trailingIcon = {
-                if (uiState.searchQuery.isNotEmpty()) {
-                    IconButton(onClick = { onSearchQueryChanged("") }) {
-                        Icon(Icons.Default.Clear, contentDescription = "Clear")
-                    }
-                }
-            },
-            singleLine = true,
-            shape = RoundedCornerShape(16.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .testTag("agenda_search_input")
-        )
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            categories.forEach { category ->
-                FilterChip(
-                    selected = uiState.activeCategory == category,
-                    onClick = { onCategorySelected(category) },
-                    label = { Text(category) },
-                    modifier = Modifier.testTag("category_chip_$category")
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        val timeframe = when (uiState.activeCategory) {
-            "Today" -> "today"
-            "Tomorrow" -> "tomorrow"
-            "All Day" -> "all-day events"
-            "All" -> if (uiState.widgetPreferences.daysHorizon == 1) "today" else "the next ${uiState.widgetPreferences.daysHorizon} days"
-            else -> uiState.activeCategory
-        }
-
-        val hiddenOutsideFilter = uiState.syncDiagnostics?.let { diag ->
-            if (diag.eventsMatchingCurrentFilters == 0) diag.eventsIn60DayWindow else 0
-        } ?: 0
-
-        EventListLazyColumn(
-            events = uiState.filteredEvents,
-            timeframe = timeframe,
-            isRefreshing = uiState.isSyncing,
-            onRefresh = onSyncNow,
-            isSearchActive = uiState.searchQuery.isNotBlank(),
-            searchQuery = uiState.searchQuery,
-            hasCalendarPermission = uiState.hasCalendarPermission,
-            syncedAccountName = uiState.syncedAccountName,
-            availableCalendarsCount = uiState.availableCalendars.size,
-            hiddenEventsOutsideFilterCount = hiddenOutsideFilter,
-            activeDaysHorizon = uiState.widgetPreferences.daysHorizon,
-            onEventClick = onSelectEvent,
-            onDeleteEvent = onDeleteEvent,
-            onAddEvent = onOpenAddEvent,
-            onSyncNow = onSyncNow,
-            onOpenDiagnostics = onOpenDiagnostics,
-            onExpandFiltersQuickFix = onExpandFiltersQuickFix,
-            modifier = Modifier.weight(1f)
         )
     }
 }
@@ -808,6 +786,44 @@ private fun openAppPermissionSettings(context: Context) {
         runCatching {
             context.startActivity(Intent(Settings.ACTION_SETTINGS).apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK })
         }
+    }
+}
+
+private fun openAppLanguageSettings(context: Context) {
+    try {
+        val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            Intent(Settings.ACTION_APP_LOCALE_SETTINGS).apply {
+                data = Uri.fromParts("package", context.packageName, null)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+        } else {
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                data = Uri.fromParts("package", context.packageName, null)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+        }
+        context.startActivity(intent)
+    } catch (e: Exception) {
+        AppLogger.w(AppLogger.TAG_UI, "Unable to open per-app locale settings", e)
+        openAppPermissionSettings(context)
+    }
+}
+
+private fun openSafeHttpsUrl(context: Context, url: String): Boolean {
+    val parsed = runCatching { Uri.parse(url) }.getOrNull() ?: return false
+    if (!parsed.scheme.equals("https", ignoreCase = true) || parsed.host.isNullOrBlank()) {
+        return false
+    }
+    return try {
+        context.startActivity(
+            Intent(Intent.ACTION_VIEW, parsed).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+        )
+        true
+    } catch (e: Exception) {
+        AppLogger.w(AppLogger.TAG_UI, "Failed launching release URL in browser", e)
+        false
     }
 }
 
@@ -850,19 +866,17 @@ private fun openGoogleCalendarApp(context: Context): Boolean {
     }
 }
 
-private fun copyTextToClipboard(context: Context, text: String) {
+private fun copySensitiveTextToClipboard(context: Context, text: String) {
     try {
-        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-        clipboard?.setPrimaryClip(ClipData.newPlainText("Calendar Sync Diagnostics", text))
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return
+        val clip = ClipData.newPlainText("Calendar Sync Diagnostics", text)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            clip.description.extras = PersistableBundle().apply {
+                putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true)
+            }
+        }
+        clipboard.setPrimaryClip(clip)
     } catch (e: Exception) {
         AppLogger.w(AppLogger.TAG_UI, "Unable to copy diagnostics report to clipboard", e)
-    }
-}
-
-private fun isRunningInTestEnvironment(): Boolean {
-    return try {
-        Class.forName("org.robolectric.Robolectric") != null
-    } catch (_: ClassNotFoundException) {
-        false
     }
 }

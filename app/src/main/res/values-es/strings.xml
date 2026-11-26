@@ -1,0 +1,257 @@
+<resources>
+    <string name="app_name">Agenda Widget</string>
+    <string name="classic_widget_label">Agenda de Calendario</string>
+    <string name="widget_description">Muestra tu próxima agenda de Google Calendar con actualización rápida y acceso directo.</string>
+    <string name="title_google_calendar">Google Calendar</string>
+    <string name="status_tap_to_connect">Concede acceso al calendario para sincronizar</string>
+    <string name="status_local_calendar">Calendario local del dispositivo</string>
+    <string name="tab_agenda">Agenda</string>
+    <string name="tab_widget_setup">Ajustes del widget</string>
+    <string name="action_sync_calendar">Sincronizar con Google Calendar</string>
+    <string name="action_add_event">Añadir evento</string>
+    <string name="action_edit_event">Editar evento</string>
+    <string name="action_delete_event">Eliminar evento</string>
+    <string name="action_cancel">Cancelar</string>
+    <string name="action_save">Guardar</string>
+    <string name="action_close">Cerrar</string>
+    <string name="action_done">Listo</string>
+    <string name="action_clear">Borrar</string>
+    <string name="action_retry">Reintentar</string>
+    <string name="action_settings">Ajustes</string>
+    <string name="action_allow">Permitir</string>
+    <string name="search_events_placeholder">Buscar próximos eventos…</string>
+    <string name="search_clear_desc">Borrar búsqueda</string>
+
+    <!-- Day headers & time -->
+    <string name="day_header_today">Hoy</string>
+    <string name="day_header_tomorrow">Mañana</string>
+    <string name="event_all_day_label">Todo el día</string>
+
+    <!-- Filter categories -->
+    <string name="filter_all">Todos</string>
+    <string name="filter_today">Hoy</string>
+    <string name="filter_tomorrow">Mañana</string>
+    <string name="filter_all_day">Todo el día</string>
+
+    <!-- Agenda header & empty states -->
+    <string name="agenda_section_title">Próximos eventos</string>
+    <string name="agenda_events_count">%1$d eventos</string>
+    <string name="agenda_events_count_one">1 evento</string>
+    <string name="agenda_empty_title">No hay próximos eventos programados</string>
+    <string name="agenda_empty_subtitle">Tu calendario está libre para el rango seleccionado. Sincroniza con Google Calendar o añade un nuevo evento abajo.</string>
+    <string name="agenda_empty_search_title">No se encontraron eventos</string>
+    <string name="agenda_empty_search_subtitle">Prueba con otra palabra clave o restablece el filtro de categoría.</string>
+    <string name="agenda_action_reset_filters">Limpiar filtros</string>
+    <string name="agenda_action_sync_now">Sincronizar ahora</string>
+    <string name="empty_calendar_illustration_desc">Ilustración de calendario sin eventos</string>
+
+    <!-- Permission card -->
+    <string name="permission_card_title">Conecta el calendario de tu dispositivo</string>
+    <string name="permission_card_body">Agenda Widget lee directamente del proveedor de calendario de Android sin servidores externos ni claves API. Concede permiso de calendario para sincronizar tus eventos de Google Calendar.</string>
+    <string name="permission_card_action_grant">Conceder acceso al calendario</string>
+    <string name="permission_card_action_settings">Abrir ajustes de la app</string>
+    <string name="permission_card_privacy_note">Los datos de tu calendario permanecen en tu dispositivo.</string>
+
+    <!-- Add / Edit Event Dialog -->
+    <string name="dialog_add_event_title">Nuevo evento de calendario</string>
+    <string name="dialog_edit_event_title">Editar evento</string>
+    <string name="field_event_title">Título del evento</string>
+    <string name="field_event_title_placeholder">p. ej. Cita médica</string>
+    <string name="field_event_title_required">Introduce un título para el evento</string>
+    <string name="field_event_all_day">Evento de todo el día</string>
+    <string name="field_event_date">Fecha</string>
+    <string name="field_event_start_time">Inicio</string>
+    <string name="field_event_end_time">Fin</string>
+    <string name="field_event_location">Ubicación (opcional)</string>
+    <string name="field_event_location_placeholder">Dirección, sala o enlace de reunión</string>
+    <string name="field_event_description">Notas (opcional)</string>
+    <string name="field_event_description_placeholder">Añade detalles o notas de la agenda</string>
+    <string name="field_event_color">Color de acento</string>
+    <string name="field_event_color_option_desc">Seleccionar color de evento %1$d</string>
+    <string name="action_save_event">Guardar evento</string>
+    <string name="action_update_event">Guardar cambios</string>
+    <string name="action_pick_date_desc">Elegir fecha del evento</string>
+    <string name="action_pick_start_time_desc">Elegir hora de inicio</string>
+    <string name="action_pick_end_time_desc">Elegir hora de fin</string>
+
+    <!-- Event Detail Dialog -->
+    <string name="detail_calendar_label">Calendario</string>
+    <string name="detail_when_label">Cuándo</string>
+    <string name="detail_location_label">Ubicación</string>
+    <string name="detail_notes_label">Notas</string>
+    <string name="detail_action_join_meeting">Unirse / Abrir enlace</string>
+    <string name="detail_action_open_gcal">Abrir en Calendario</string>
+    <string name="detail_delete_confirm_title">¿Eliminar este evento?</string>
+    <string name="detail_delete_confirm_message">\"%1$s\" se eliminará permanentemente de tu calendario.</string>
+    <string name="detail_action_confirm_delete">Eliminar</string>
+    <string name="event_item_link_badge_desc">El evento contiene un enlace de reunión</string>
+
+    <!-- Widget Customizer & Preview -->
+    <string name="widget_preview_header">Vista previa en vivo</string>
+    <string name="widget_preview_subtitle">Refleja el diseño de tu pantalla de inicio</string>
+    <string name="widget_customizer_title">Apariencia del widget</string>
+    <string name="widget_customizer_theme_label">Tema de color</string>
+    <string name="widget_customizer_opacity_label">Opacidad del fondo</string>
+    <string name="widget_customizer_opacity_value">%1$d%%</string>
+    <string name="widget_customizer_density_label">Densidad del texto</string>
+    <string name="widget_customizer_horizon_label">Horizonte próximo</string>
+    <string name="widget_customizer_horizon_days">%1$d días</string>
+    <string name="widget_customizer_calendars_label">Calendarios visibles</string>
+    <string name="widget_customizer_calendars_all">Todos los calendarios</string>
+    <string name="widget_customizer_calendars_selected">%1$d seleccionados</string>
+    <string name="widget_customizer_pin_button">Añadir widget a la pantalla de inicio</string>
+    <string name="widget_theme_material_you">Material You</string>
+    <string name="widget_theme_classic_blue">Azul Google</string>
+    <string name="widget_theme_dark_slate">Medianoche</string>
+    <string name="widget_theme_emerald">Verde esmeralda</string>
+    <string name="widget_theme_warm_sunset">Ámbar atardecer</string>
+    <string name="widget_density_compact">Compacto</string>
+    <string name="widget_density_cozy">Normal</string>
+    <string name="widget_density_spacious">Grande</string>
+    <string name="widget_customizer_subtitle">Personaliza opacidad, tema y calendarios</string>
+    <string name="widget_customizer_custom_filter">Filtro personalizado</string>
+    <string name="widget_customizer_display_toggles">Opciones de visualización</string>
+    <string name="widget_customizer_show_locations">Mostrar ubicaciones y enlaces de reunión</string>
+    <string name="widget_customizer_show_day_headers">Mostrar encabezados de fecha</string>
+    <string name="widget_customizer_show_past">Mostrar eventos pasados de hoy</string>
+    <string name="widget_customizer_no_cals_permission">Concede permiso de calendario para elegir entre las cuentas de Google de tu dispositivo.</string>
+    <string name="widget_customizer_no_cals_selected">Ningún calendario seleccionado — activa al menos uno para mostrar eventos.</string>
+    <string name="widget_opacity_clear">Transparente</string>
+    <string name="widget_opacity_glass">Cristal</string>
+    <string name="widget_opacity_translucent">Translúcido</string>
+    <string name="widget_opacity_frosted">Esmerilado</string>
+    <string name="widget_opacity_solid">Sólido</string>
+
+    <!-- Widget Pin Chooser Dialog -->
+    <string name="pin_chooser_title">Elegir widget de pantalla de inicio</string>
+    <string name="pin_chooser_subtitle">Elige el estilo de widget que deseas fijar en tu lanzador.</string>
+    <string name="pin_chooser_glance_title">Widget adaptable Glance</string>
+    <string name="pin_chooser_glance_desc">Widget moderno Jetpack Glance con estilo Material 3 y sincronización en segundo plano.</string>
+    <string name="pin_chooser_classic_title">Agenda clásica desplazable</string>
+    <string name="pin_chooser_classic_desc">Lista completa desplazable con opacidad personalizada, temas y apertura directa.</string>
+
+    <!-- Widget Strings -->
+    <string name="widget_no_events">Sin próximos eventos</string>
+    <string name="widget_default_title">Próxima agenda</string>
+    <string name="widget_new_event_desc">Nuevo evento</string>
+    <string name="widget_refresh_desc">Actualizar agenda</string>
+    <string name="widget_refreshing_toast">Sincronizando eventos del calendario…</string>
+    <string name="widget_permission_required_toast">Se requiere acceso al calendario. Abre la app para conceder permiso.</string>
+    <string name="glance_widget_label">Widget Glance de Agenda</string>
+    <string name="glance_widget_description">Widget adaptable Jetpack Glance con sincronización periódica en segundo plano.</string>
+    <string name="widget_sync_never">Sin sincronizar</string>
+    <string name="widget_sync_just_now">Sincronizado ahora</string>
+    <string name="widget_sync_in_progress">Sincronizando…</string>
+    <string name="widget_sync_time_prefix">Sincr. %1$s</string>
+    <string name="widget_sync_tooltip_never">Nunca sincronizado con el calendario</string>
+    <string name="widget_sync_tooltip_at">Última sincronización con el calendario: %1$s</string>
+
+    <!-- Errors & Snackbars -->
+    <string name="error_calendar_permission_required">Se requiere permiso de calendario para sincronizar tu agenda.</string>
+    <string name="error_sync_failed">No se pudieron sincronizar los eventos. Inténtalo de nuevo.</string>
+    <string name="error_add_event_failed">No se pudo guardar el evento. Inténtalo de nuevo.</string>
+    <string name="error_update_event_failed">No se pudo actualizar el evento. Inténtalo de nuevo.</string>
+    <string name="error_delete_event_failed">No se pudo eliminar el evento. Inténtalo de nuevo.</string>
+    <string name="msg_saved_locally_only">Guardado localmente. Concede permiso de escritura para sincronizar con Google Calendar.</string>
+    <string name="msg_open_link_failed">No se puede abrir el enlace en este dispositivo.</string>
+    <string name="msg_open_calendar_app_failed">No hay ninguna aplicación de calendario disponible para abrir este evento.</string>
+    <string name="msg_widget_pin_requested">Añadiendo widget de Agenda a la pantalla de inicio…</string>
+    <string name="msg_widget_pin_unsupported">Tu lanzador no admite fijado directo. Añádelo desde el selector de widgets.</string>
+    <string name="msg_widget_pin_legacy">Mantén pulsada la pantalla de inicio, elige Widgets y selecciona Agenda de Calendario.</string>
+
+    <!-- Sync Diagnostics -->
+    <string name="action_troubleshoot_sync">Solucionar sincronización</string>
+    <string name="diagnostics_sheet_title">Diagnóstico de sincronización</string>
+    <string name="diagnostics_sheet_subtitle">Inspección en vivo de CalendarContract y Sync Adapter</string>
+    <string name="diagnostics_open_desc">Abrir diagnóstico de sincronización</string>
+    <string name="diagnostics_refresh_desc">Actualizar diagnóstico</string>
+    <string name="diagnostics_close_desc">Cerrar diagnóstico</string>
+    <string name="diagnostics_section_system">Sistema y rango de consulta</string>
+    <string name="diagnostics_section_calendars">Calendarios del dispositivo (%1$d)</string>
+    <string name="diagnostics_section_actions">Herramientas de reparación</string>
+    <string name="diagnostics_section_logs">Registros recientes depurados (%1$d)</string>
+    <string name="diagnostics_logs_empty">Todavía no hay registros de diagnóstico.</string>
+    <string name="diagnostics_logs_clear">Limpiar registros</string>
+    <string name="diagnostics_logs_privacy_hint">Los correos, rutas URL y tokens se censuran automáticamente.</string>
+    <string name="diagnostics_action_force_repair">Forzar sincronización y reparar</string>
+    <string name="diagnostics_action_repairing">Reparando y solicitando sincronización…</string>
+    <string name="diagnostics_action_sync_settings">Ajustes de sincronización</string>
+    <string name="diagnostics_action_open_gcal">Abrir Google Calendar</string>
+    <string name="diagnostics_action_copy_report">Copiar informe de diagnóstico</string>
+    <string name="diagnostics_action_expand_filters">Ampliar a 30 días y mostrar todos</string>
+    <string name="diagnostics_report_copied">Informe de diagnóstico depurado copiado al portapapeles.</string>
+    <string name="diagnostics_no_calendars_found">No se encontraron calendarios en CalendarContract de Android.</string>
+    <string name="diagnostics_sync_requested_msg">Sincronización de Google Calendar solicitada para %1$d cuenta(s). Los eventos aparecerán al finalizar.</string>
+    <string name="diagnostics_repaired_and_synced_msg">Sincronización activada en %1$d calendario(s) y sincronización solicitada.</string>
+    <string name="diagnostics_no_syncable_accounts_msg">No se encontraron cuentas de Google sincronizables. Añade una en Ajustes de Android.</string>
+    <string name="diagnostics_open_settings_failed">No se pudieron abrir los ajustes de sincronización de Android.</string>
+    <string name="diagnostics_hidden_events_banner">Se encontraron %1$d evento(s) en los próximos 60 días ocultos por tus filtros actuales (ventana de %2$d días).</string>
+    <string name="diagnostics_status_healthy">Saludable</string>
+    <string name="diagnostics_status_attention">Requiere atención</string>
+    <string name="diagnostics_label_permission">Permiso de calendario</string>
+    <string name="diagnostics_label_master_sync">Sincr. automática global</string>
+    <string name="diagnostics_label_horizon">Horizonte de consulta</string>
+    <string name="diagnostics_label_cached_events">Eventos en caché</string>
+    <string name="diagnostics_label_upcoming_60d">Próximos (60d)</string>
+    <string name="diagnostics_value_granted">Concedido</string>
+    <string name="diagnostics_value_missing">Faltante</string>
+    <string name="diagnostics_value_enabled">Activado</string>
+    <string name="diagnostics_value_disabled">Desactivado</string>
+    <string name="diagnostics_calendar_sync_on">Sincr. SÍ</string>
+    <string name="diagnostics_calendar_sync_off">Sincr. NO</string>
+    <string name="diagnostics_calendar_visible">Visible</string>
+    <string name="diagnostics_calendar_hidden">Oculto</string>
+    <string name="diagnostics_calendar_events_count">%1$d próximos</string>
+
+    <!-- About & Updates Bottom Sheet -->
+    <string name="about_open_desc">Acerca de Agenda Widget y actualizaciones</string>
+    <string name="about_sheet_title">Acerca de Agenda Widget</string>
+    <string name="about_sheet_subtitle">Complemento nativo de calendario y widgets de pantalla de inicio</string>
+    <string name="about_version_label">Versión</string>
+    <string name="about_build_label">Código de compilación</string>
+    <string name="about_build_type_label">Variante</string>
+    <string name="about_build_type_debug">Depuración</string>
+    <string name="about_build_type_release">Lanzamiento</string>
+    <string name="about_privacy_title">Privacidad primero en el dispositivo</string>
+    <string name="about_privacy_body">Lee tu calendario directamente desde Android CalendarContract sin claves API ni analíticas, y excluye la caché privada de copias de seguridad en la nube.</string>
+    <string name="about_updates_title">Actualizaciones de versión</string>
+    <string name="about_updates_idle">Consulta GitHub Releases mediante HTTPS para comprobar si existe una versión más reciente.</string>
+    <string name="about_updates_checking">Comprobando GitHub Releases…</string>
+    <string name="about_updates_up_to_date">Estás usando la última versión (v%1$s).</string>
+    <string name="about_updates_available">La versión v%1$s está disponible (instalada: v%2$s).</string>
+    <string name="about_updates_not_configured">Repositorio no configurado en version.properties. Define GITHUB_REPOSITORY para activar la comprobación.</string>
+    <string name="about_updates_error">No se pudo comprobar actualizaciones: %1$s</string>
+    <string name="about_action_check_updates">Buscar actualizaciones</string>
+    <string name="about_action_open_release">Ver versión en GitHub</string>
+    <string name="about_action_open_diagnostics">Abrir diagnóstico de sincronización</string>
+    <string name="about_action_app_language">Idioma de la app</string>
+    <string name="about_language_hint">Cambia el idioma en Ajustes de Android → Aplicaciones → Agenda Widget → Idioma.</string>
+
+    <!-- Additional localized dialog, empty state, and permission copy -->
+    <string name="action_ok">Aceptar</string>
+    <string name="action_change">Cambiar</string>
+    <string name="action_edit">Editar</string>
+    <string name="action_keep">Mantener</string>
+    <string name="detail_recurring_badge">Recurrente</string>
+    <string name="detail_recurring_desc">Evento recurrente</string>
+    <string name="detail_delete_recurring_message">Este es un evento recurrente. Al eliminarlo se borrará la serie de tu calendario.</string>
+    <string name="dialog_select_start_time">Seleccionar hora de inicio</string>
+    <string name="dialog_select_end_time">Seleccionar hora de fin</string>
+    <string name="permission_card_native_subtitle">Sincronización nativa en el dispositivo</string>
+    <string name="permission_card_connected_title">Calendario del dispositivo conectado</string>
+    <string name="permission_card_granted_desc">Permiso concedido</string>
+    <string name="agenda_empty_today_title">¡Todo despejado para hoy!</string>
+    <string name="agenda_empty_tomorrow_title">Nada programado para mañana</string>
+    <string name="agenda_empty_all_day_title">Sin eventos de todo el día</string>
+    <string name="agenda_empty_today_subtitle">No tienes eventos próximos para hoy. ¡Disfruta tu tiempo libre o programa algo nuevo!</string>
+    <string name="agenda_empty_tomorrow_subtitle">Tu calendario de mañana está libre. Planifica con antelación añadiendo un evento.</string>
+    <string name="agenda_empty_all_day_subtitle">No hay eventos de todo el día programados en el horizonte seleccionado.</string>
+    <string name="agenda_empty_horizon_subtitle">Tu calendario está libre para %1$s. Añade un evento o sincroniza tus cuentas de Google.</string>
+    <string name="agenda_empty_search_query_subtitle">No encontramos eventos que coincidan con \"%1$s\". Comprueba la ortografía o prueba otra palabra clave.</string>
+    <string name="status_permission_needed_sync">Se requiere permiso de calendario para sincronizar cuentas de Google</string>
+    <string name="status_synced_with_account">Sincronizado con %1$s</string>
+    <string name="status_synced_calendars_count">%1$d calendarios de Google</string>
+    <string name="status_local_calendar_active">Calendario local activo (añade una cuenta de Google en Ajustes de Android)</string>
+    <string name="diagnostics_logs_show">Mostrar</string>
+    <string name="diagnostics_logs_hide">Ocultar</string>
+</resources>

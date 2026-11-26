@@ -15,6 +15,7 @@ import com.example.data.pref.WidgetPreferencesManager
 import com.example.data.repository.CalendarRepository
 import com.example.util.AppLogger
 import com.example.util.CalendarColorMapper
+import com.example.util.CalendarDateFormatter
 
 class CalendarAgendaViewsFactory(
     private val context: Context,
@@ -76,10 +77,11 @@ class CalendarAgendaViewsFactory(
         val theme = WidgetThemeHelper.resolveColors(context, prefs)
         val rv = RemoteViews(context.packageName, R.layout.widget_agenda_item)
 
-        // Day header chip with theme-matched pill background
+        // Localized day header chip with theme-matched pill background
         if (event.isFirstOfDay && event.dayHeader.isNotEmpty() && prefs.showDayHeaders) {
+            val localizedHeader = CalendarDateFormatter.formatLocalizedDayHeader(context, event.startMillis)
             rv.setViewVisibility(R.id.widget_item_date_header_container, View.VISIBLE)
-            rv.setTextViewText(R.id.widget_item_date_header, event.dayHeader)
+            rv.setTextViewText(R.id.widget_item_date_header, localizedHeader)
             rv.setTextColor(R.id.widget_item_date_header, theme.accentColor)
             rv.setInt(R.id.widget_item_date_header_bg, "setColorFilter", theme.chipBgColor)
             rv.setInt(R.id.widget_item_date_header_bg, "setImageAlpha", theme.chipBgAlpha)
@@ -116,11 +118,12 @@ class CalendarAgendaViewsFactory(
             rv.setViewVisibility(R.id.widget_item_calendar, View.GONE)
         }
 
-        // Time
-        val timeString = CalendarRepository.formatEventTime(
-            event.startMillis,
-            event.endMillis,
-            event.isAllDay
+        // Locale- and 12h/24h-aware time formatting
+        val timeString = CalendarDateFormatter.formatEventTime(
+            startMillis = event.startMillis,
+            endMillis = event.endMillis,
+            isAllDay = event.isAllDay,
+            context = context
         )
         rv.setTextViewText(R.id.widget_item_time, timeString)
         rv.setTextViewTextSize(R.id.widget_item_time, TypedValue.COMPLEX_UNIT_SP, prefs.density.timeSp)
@@ -142,11 +145,10 @@ class CalendarAgendaViewsFactory(
         // Rounded accent color stripe
         rv.setInt(R.id.widget_item_color_bar, "setColorFilter", eventColorInt)
 
-        // Fill-in Intent for list item click
+        // Fill-in Intent carries only event ID & metadata; receiver verifies target link in Room
         val fillInIntent = Intent().apply {
             putExtra(CalendarAgendaWidgetProvider.EXTRA_EVENT_ID, event.id)
             putExtra(CalendarAgendaWidgetProvider.EXTRA_EVENT_TITLE, event.title)
-            putExtra(CalendarAgendaWidgetProvider.EXTRA_EVENT_LINK, event.htmlLink ?: "")
             putExtra(CalendarAgendaWidgetProvider.EXTRA_START_MILLIS, event.startMillis)
         }
         rv.setOnClickFillInIntent(R.id.widget_item_container, fillInIntent)

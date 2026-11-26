@@ -1,6 +1,7 @@
 package com.example.data.model
 
 import com.example.data.repository.CalendarAccountInfo
+import com.example.util.LogSanitizer
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -60,7 +61,14 @@ data class CalendarSyncDiagnostics(
                 (!cal.calendarInfo.isSyncEventsEnabled || !cal.calendarInfo.isVisible)
         }
 
-    fun buildPlainTextReport(): String {
+    /**
+     * Builds a shareable plain-text diagnostic report.
+     * By default [redactPii] is true so personal email addresses, URL paths, and tokens are masked.
+     */
+    fun buildPlainTextReport(
+        redactPii: Boolean = true,
+        recentLogs: List<String> = emptyList()
+    ): String {
         val formatter = SimpleDateFormat("yyyy-MM-dd HH:mm:ss z", Locale.US)
         val sb = StringBuilder()
         sb.appendLine("=== Agenda Widget Sync Diagnostics ===")
@@ -77,7 +85,8 @@ data class CalendarSyncDiagnostics(
             "Event Counts: rawAllTime=$totalRawProviderEvents, next60d=$eventsIn60DayWindow, matchingFilters=$eventsMatchingCurrentFilters"
         )
         if (!lastQueryError.isNullOrBlank()) {
-            sb.appendLine("Last Query Error: $lastQueryError")
+            val safeError = if (redactPii) LogSanitizer.sanitize(lastQueryError) else lastQueryError
+            sb.appendLine("Last Query Error: $safeError")
         }
         sb.appendLine("Calendars (${calendars.size}):")
         if (calendars.isEmpty()) {
@@ -85,12 +94,20 @@ data class CalendarSyncDiagnostics(
         } else {
             calendars.forEach { entry ->
                 val info = entry.calendarInfo
+                val displayName = if (redactPii) LogSanitizer.sanitize(info.displayName) else info.displayName
+                val accountName = if (redactPii) LogSanitizer.redactEmail(info.accountName) else info.accountName
                 sb.appendLine(
-                    "  - [${info.id}] ${info.displayName} (${info.accountName} / ${info.accountType}) " +
+                    "  - [${info.id}] $displayName ($accountName / ${info.accountType}) " +
                         "visible=${info.isVisible}, syncEvents=${info.isSyncEventsEnabled}, " +
                         "autoSync=${entry.autoSyncEnabled}, active=${entry.isSyncActive}, pending=${entry.isSyncPending}, " +
                         "raw=${entry.totalRawEventsCount}, next60d=${entry.upcoming60DayInstancesCount}, shown=${entry.inCurrentHorizonCount}"
                 )
+            }
+        }
+        if (recentLogs.isNotEmpty()) {
+            sb.appendLine("Recent Sanitized Logs (${recentLogs.size}):")
+            recentLogs.forEach { line ->
+                sb.appendLine("  $line")
             }
         }
         return sb.toString().trimEnd()

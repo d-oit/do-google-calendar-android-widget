@@ -8,7 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- _Add upcoming changes here before cutting the next release._
+- **Internationalization (i18n)**: Full English (`en`), Spanish (`es`), French (`fr`), and German (`de`) localization, Android 13+ per-app language configuration (`locales_config.xml`), locale-safe `AgendaFilterCategory` filtering, and 12h/24h system time formatting via `CalendarDateFormatter`.
+- **In-App About & Release Update Check**: New About & Release Info sheet displaying version/build metadata, privacy posture, language settings shortcut, and user-initiated HTTPS GitHub Releases update check (`AppUpdateChecker`, configured via `GITHUB_REPOSITORY` in `version.properties`).
+- **Jetpack Glance Parity & Pin Chooser**: Upgraded Glance widget buttons to 48dp accessible touch targets, added syncing indicator state, added system time/timezone/date/calendar broadcast handling, and introduced `WidgetPinChooserDialog` (Adaptive Glance vs. Classic Scrollable).
+- **Sanitized Diagnostic Log Ring Buffer**: Added bounded 120-entry PII-redacted log buffer (`LogSanitizer`) in `AppLogger`, surfaced via a collapsible viewer in `SyncDiagnosticsBottomSheet`.
+- **Release & Repository Governance**: Added `scripts/bump-version.sh`, `README.md`, `CONTRIBUTING.md`, `SECURITY.md`, `PRIVACY.md`, `LICENSE` (Apache-2.0), `.github/CODEOWNERS`, and `.github/workflows/security.yml` (CodeQL + static security checks).
+
+### Changed
+- **Release Build Hardening**: Enabled R8 code minification (`isMinifyEnabled = true`) and resource shrinking (`isShrinkResources = true`) with tailored ProGuard keep rules and CI `mapping.txt` archival.
+- **Data Layer Modularization & Performance**: Split `CalendarRepository` into `CalendarProviderDataSource` and `CalendarEventWriter`, offloaded agenda filtering to `Dispatchers.Default`, debounced widget invalidation broadcasts (150ms), and gated legacy seed cleanup to once per process.
+
+### Fixed
+- **Midnight Date Rollover & Tablet Scroll**: Added reactive day-boundary refresh on `ACTION_DATE_CHANGED`/`TIME_CHANGED`/`TIMEZONE_CHANGED` and moved `WidgetCustomizerControls` into the scrollable left pane on expanded tablet screens.
+- **Security & Privacy**: Hardened exported widget click broadcast handling against untrusted link redirection by verifying event IDs against Room cache, excluded `calendar_widget_db` from Android Auto Backup & Device Transfer, redacted account emails by default in diagnostic reports, flagged copied reports as sensitive on Android 13+, and eliminated workflow expression interpolation in `release.yml`.
 
 ## [0.1.0] - 2026-11-26
 

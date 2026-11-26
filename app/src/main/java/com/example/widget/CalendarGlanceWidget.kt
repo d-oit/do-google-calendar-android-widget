@@ -1,16 +1,17 @@
 package com.example.widget
 
+import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color as AndroidColor
 import android.widget.RemoteViews
-import android.appwidget.AppWidgetManager
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.glance.ColorFilter
@@ -42,7 +43,6 @@ import androidx.glance.layout.Column
 import androidx.glance.layout.ContentScale
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
-import androidx.glance.layout.fillMaxHeight
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
@@ -67,13 +67,11 @@ import com.example.data.pref.WidgetPreferencesManager
 import com.example.data.repository.CalendarRepository
 import com.example.util.AppLogger
 import com.example.util.CalendarColorMapper
+import com.example.util.CalendarDateFormatter
 import com.example.worker.CalendarSyncScheduler
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 class CalendarGlanceWidget : GlanceAppWidget() {
 
@@ -90,6 +88,7 @@ class CalendarGlanceWidget : GlanceAppWidget() {
             val glancePrefs = currentState<Preferences>()
             val syncRevision = glancePrefs[KEY_SYNC_REVISION] ?: 0
             val glanceSyncMillis = glancePrefs[KEY_LAST_SYNC_MILLIS] ?: 0L
+            val isSyncing = glancePrefs[KEY_IS_SYNCING] ?: false
             val effectiveLastSyncMillis = maxOf(glanceSyncMillis, snapshot.lastSyncMillis)
 
             GlanceTheme {
@@ -99,7 +98,8 @@ class CalendarGlanceWidget : GlanceAppWidget() {
                     theme = snapshot.theme,
                     hasPermission = snapshot.hasPermission,
                     syncRevision = syncRevision,
-                    lastSyncMillis = effectiveLastSyncMillis
+                    lastSyncMillis = effectiveLastSyncMillis,
+                    isSyncing = isSyncing
                 )
             }
         }
@@ -160,13 +160,7 @@ class CalendarGlanceWidget : GlanceAppWidget() {
     companion object {
         val KEY_SYNC_REVISION = intPreferencesKey("glance_sync_revision")
         val KEY_LAST_SYNC_MILLIS = longPreferencesKey("glance_last_sync_millis")
-
-        internal val narrowDateFormat = ThreadLocal.withInitial {
-            SimpleDateFormat("EEE, MMM d", Locale.getDefault())
-        }
-        internal val wideDateFormat = ThreadLocal.withInitial {
-            SimpleDateFormat("EEEE, MMM d", Locale.getDefault())
-        }
+        val KEY_IS_SYNCING = booleanPreferencesKey("glance_is_syncing")
     }
 }
 
@@ -177,7 +171,8 @@ fun CalendarGlanceWidgetContent(
     theme: ResolvedWidgetTheme,
     hasPermission: Boolean,
     syncRevision: Int = 0,
-    lastSyncMillis: Long = 0L
+    lastSyncMillis: Long = 0L,
+    isSyncing: Boolean = false
 ) {
     val context = LocalContext.current
     val size: DpSize = LocalSize.current
@@ -191,11 +186,8 @@ fun CalendarGlanceWidgetContent(
     val subtitleColor = Color(theme.subtitleColor)
     val dividerColor = Color(theme.dividerColor)
 
-    val dateTitle = (if (isNarrow) {
-        CalendarGlanceWidget.narrowDateFormat.get()
-    } else {
-        CalendarGlanceWidget.wideDateFormat.get()
-    })?.format(Date()) ?: context.getString(R.string.widget_default_title)
+    val dateTitle = CalendarDateFormatter.formatWidgetHeaderDate(isNarrow = isNarrow)
+        .ifBlank { context.getString(R.string.widget_default_title) }
 
     val openAppIntent = Intent(context, MainActivity::class.java).apply {
         flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -213,11 +205,11 @@ fun CalendarGlanceWidgetContent(
             .padding(12.dp)
             .semantics { testTag = "glance_widget_root" }
     ) {
-        // Header row
+        // Header row with 48dp accessibility touch targets
         Row(
             modifier = GlanceModifier
                 .fillMaxWidth()
-                .padding(bottom = 8.dp),
+                .padding(bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (!isNarrow) {
@@ -248,15 +240,19 @@ fun CalendarGlanceWidgetContent(
                     modifier = GlanceModifier.semantics { testTag = "glance_date_title" }
                 )
 
-                val syncStatusText = CalendarRepository.formatLastSyncIndicator(
-                    context = context,
-                    lastSyncMillis = lastSyncMillis,
-                    compact = isNarrow
-                )
-                val syncDotColor = if (lastSyncMillis > 0L) {
-                    if (theme.isDark) Color(0xFF81C995) else Color(0xFF137333)
+                val syncStatusText = if (isSyncing) {
+                    context.getString(R.string.widget_sync_in_progress)
                 } else {
-                    subtitleColor
+                    CalendarDateFormatter.formatLastSyncIndicator(
+                        context = context,
+                        lastSyncMillis = lastSyncMillis,
+                        compact = isNarrow
+                    )
+                }
+                val syncDotColor = when {
+                    isSyncing -> accent
+                    lastSyncMillis > 0L -> if (theme.isDark) Color(0xFF81C995) else Color(0xFF137333)
+                    else -> subtitleColor
                 }
                 Row(
                     modifier = GlanceModifier
@@ -283,40 +279,52 @@ fun CalendarGlanceWidgetContent(
                 }
             }
 
+            // 48dp accessible touch target for Add Event
             Box(
                 modifier = GlanceModifier
-                    .size(40.dp)
-                    .background(ColorProvider(chipBg))
-                    .cornerRadius(20.dp)
+                    .size(48.dp)
                     .clickable(actionStartActivity(addEventIntent))
                     .semantics { testTag = "glance_add_event_button" },
                 contentAlignment = Alignment.Center
             ) {
-                Image(
-                    provider = ImageProvider(R.drawable.ic_widget_add),
-                    contentDescription = context.getString(R.string.widget_new_event_desc),
-                    colorFilter = ColorFilter.tint(ColorProvider(accent)),
-                    modifier = GlanceModifier.size(18.dp)
-                )
+                Box(
+                    modifier = GlanceModifier
+                        .size(36.dp)
+                        .background(ColorProvider(chipBg))
+                        .cornerRadius(18.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        provider = ImageProvider(R.drawable.ic_widget_add),
+                        contentDescription = context.getString(R.string.widget_new_event_desc),
+                        colorFilter = ColorFilter.tint(ColorProvider(accent)),
+                        modifier = GlanceModifier.size(18.dp)
+                    )
+                }
             }
 
-            Spacer(modifier = GlanceModifier.width(6.dp))
-
+            // 48dp accessible touch target for Manual Refresh
             Box(
                 modifier = GlanceModifier
-                    .size(40.dp)
-                    .background(ColorProvider(chipBg))
-                    .cornerRadius(20.dp)
+                    .size(48.dp)
                     .clickable(actionRunCallback<RefreshCalendarGlanceAction>())
                     .semantics { testTag = "glance_refresh_button" },
                 contentAlignment = Alignment.Center
             ) {
-                Image(
-                    provider = ImageProvider(R.drawable.ic_widget_refresh),
-                    contentDescription = context.getString(R.string.widget_refresh_desc),
-                    colorFilter = ColorFilter.tint(ColorProvider(accent)),
-                    modifier = GlanceModifier.size(18.dp)
-                )
+                Box(
+                    modifier = GlanceModifier
+                        .size(36.dp)
+                        .background(ColorProvider(chipBg))
+                        .cornerRadius(18.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        provider = ImageProvider(R.drawable.ic_widget_refresh),
+                        contentDescription = context.getString(R.string.widget_refresh_desc),
+                        colorFilter = ColorFilter.tint(ColorProvider(accent)),
+                        modifier = GlanceModifier.size(18.dp)
+                    )
+                }
             }
         }
 
@@ -426,8 +434,9 @@ private fun GlanceAgendaItemRow(
             .padding(bottom = 6.dp)
     ) {
         if (prefs.showDayHeaders && event.isFirstOfDay && event.dayHeader.isNotBlank()) {
+            val localizedHeader = CalendarDateFormatter.formatLocalizedDayHeader(context, event.startMillis)
             Text(
-                text = event.dayHeader,
+                text = localizedHeader,
                 style = TextStyle(
                     color = ColorProvider(accentColor),
                     fontSize = 11.sp,
@@ -467,10 +476,11 @@ private fun GlanceAgendaItemRow(
                     maxLines = 1
                 )
 
-                val timeStr = CalendarRepository.formatEventTime(
-                    event.startMillis,
-                    event.endMillis,
-                    event.isAllDay
+                val timeStr = CalendarDateFormatter.formatEventTime(
+                    startMillis = event.startMillis,
+                    endMillis = event.endMillis,
+                    isAllDay = event.isAllDay,
+                    context = context
                 )
                 val subtitle = if (prefs.showLocations && !event.location.isNullOrBlank()) {
                     "$timeStr • ${event.location}"
@@ -496,8 +506,25 @@ class RefreshCalendarGlanceAction : ActionCallback {
         glanceId: GlanceId,
         parameters: ActionParameters
     ) {
+        val appContext = context.applicationContext
         AppLogger.d(AppLogger.TAG_SYNC, "Glance manual refresh tapped for glanceId=$glanceId")
-        CalendarSyncScheduler.enqueueImmediateSync(context.applicationContext, forceRefresh = true)
+        try {
+            updateAppWidgetState(
+                context = appContext,
+                definition = PreferencesGlanceStateDefinition,
+                glanceId = glanceId
+            ) { prefs ->
+                prefs.toMutablePreferences().apply {
+                    this[CalendarGlanceWidget.KEY_IS_SYNCING] = true
+                }
+            }
+            CalendarGlanceWidget().update(appContext, glanceId)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            AppLogger.w(AppLogger.TAG_WIDGET, "Failed setting Glance syncing state before sync", e)
+        }
+        CalendarSyncScheduler.enqueueImmediateSync(appContext, forceRefresh = true)
     }
 }
 
@@ -526,6 +553,7 @@ object GlanceWidgetUpdater {
                         val nextRev = (this[CalendarGlanceWidget.KEY_SYNC_REVISION] ?: 0) + 1
                         this[CalendarGlanceWidget.KEY_SYNC_REVISION] = nextRev
                         this[CalendarGlanceWidget.KEY_LAST_SYNC_MILLIS] = syncTimestampMillis
+                        this[CalendarGlanceWidget.KEY_IS_SYNCING] = false
                     }
                 }
                 glanceWidget.update(appContext, glanceId)

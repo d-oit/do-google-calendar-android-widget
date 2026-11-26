@@ -207,8 +207,12 @@ class CalendarSyncDiagnosticsRobolectricTest {
         assertEquals(1, diagnostics.calendars.size)
 
         val reportText = diagnostics.buildPlainTextReport()
-        assertTrue(reportText.contains(accountEmail))
+        assertFalse("Default report must redact raw email", reportText.contains(accountEmail))
+        assertTrue("Default report should contain redacted email", reportText.contains("d***@gmail.com"))
         assertTrue(reportText.contains("PROVIDER_EMPTY_NEEDS_GOOGLE_SYNC"))
+
+        val unredactedReport = diagnostics.buildPlainTextReport(redactPii = false)
+        assertTrue(unredactedReport.contains(accountEmail))
     }
 
     @Test
@@ -402,7 +406,8 @@ class CalendarSyncDiagnosticsRobolectricTest {
         assertTrue(repairClicked)
         assertTrue(settingsClicked)
         assertTrue(openGcalClicked)
-        assertTrue(copiedReport?.contains("dmmotec@gmail.com") == true)
+        assertFalse("Copied report must redact raw account email", copiedReport?.contains("dmmotec@gmail.com") == true)
+        assertTrue("Copied report should contain redacted account email", copiedReport?.contains("d***@gmail.com") == true)
     }
 }
 

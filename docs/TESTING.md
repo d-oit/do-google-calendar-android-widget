@@ -29,12 +29,12 @@ Agenda Widget enforces a **fast, deterministic, JVM-first testing strategy**:
 
 | Test Suite | Scope & Domain | Coverage IDs |
 | --- | --- | --- |
-| `ExampleUnitTest` | Baseline JVM unit sanity | Unit |
 | `ReleaseVersionTest` | SemVer 2.0.0 compliance & `version.properties` ↔ `BuildConfig` parity | Release Governance |
 | `ExampleRobolectricTest` | App resource context, date headers, and time formatting | Core Utilities |
 | `CalendarViewportTestHarness` | Phone/Foldable/Tablet viewports, search & filter, CRUD, Room caching, RemoteViews rendering, opacity/themes, `CalendarColorMapper`, pull-to-refresh, widget refresh, `AppLogger` & Snackbar error recovery, atomic Room transactions | `CUJ_01` – `CUJ_22` |
 | `CalendarWorkManagerGlanceTest` | Periodic/immediate WorkManager scheduling, worker sync & retry, Jetpack Glance empty/populated rendering, last-sync timestamp indicator | `CUJ_23` – `CUJ_27` |
-| `CalendarSyncDiagnosticsRobolectricTest` | Disabled `SYNC_EVENTS` detection & repair, zero-raw-events classification, horizon expansion, multi-day resilience, ContentObserver reactivity, Diagnostics UI sheet | `CUJ_28` – `CUJ_33` |
+| `CalendarSyncDiagnosticsRobolectricTest` | Disabled `SYNC_EVENTS` detection & repair, zero-raw-events classification, horizon expansion, multi-day resilience, ContentObserver reactivity, PII-redacted Diagnostics UI sheet | `CUJ_28` – `CUJ_33` |
+| `HardeningI18nAndUpdateTest` | Widget broadcast click verification, `LogSanitizer` & `AppLogger` ring buffer, locale-safe filtering & `es`/`fr`/`de` parity, midnight rollover, 12h/24h formatting, HTTPS `AppUpdateChecker`, Glance syncing state & About sheet | Security, i18n & Release |
 
 ---
 

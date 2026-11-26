@@ -48,8 +48,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.R
 import com.example.util.AppLogger
 
 /**
@@ -130,13 +132,13 @@ fun CalendarPermissionRequestCard(
 
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Connect Device Calendar",
+                            text = stringResource(R.string.permission_card_title),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "Native On-Device Calendar Sync",
+                            text = stringResource(R.string.permission_card_native_subtitle),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.Medium
@@ -147,7 +149,7 @@ fun CalendarPermissionRequestCard(
                 Spacer(modifier = Modifier.height(10.dp))
 
                 Text(
-                    text = "Allow calendar access to display your Google Calendar schedule directly from your device accounts—no API keys or external sign-in required.",
+                    text = stringResource(R.string.permission_card_body),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -178,7 +180,7 @@ fun CalendarPermissionRequestCard(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Allow Access",
+                            text = stringResource(R.string.permission_card_action_grant),
                             fontWeight = FontWeight.SemiBold
                         )
                     }
@@ -192,7 +194,7 @@ fun CalendarPermissionRequestCard(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Settings,
-                            contentDescription = "Open App Settings",
+                            contentDescription = stringResource(R.string.permission_card_action_settings),
                             modifier = Modifier.size(18.dp)
                         )
                     }
@@ -231,7 +233,7 @@ fun CalendarPermissionRequestCard(
                 ) {
                     Icon(
                         imageVector = Icons.Default.CheckCircle,
-                        contentDescription = "Permission Granted",
+                        contentDescription = stringResource(R.string.permission_card_granted_desc),
                         tint = MaterialTheme.colorScheme.tertiary,
                         modifier = Modifier.size(22.dp)
                     )
@@ -241,13 +243,14 @@ fun CalendarPermissionRequestCard(
 
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Device Calendar Connected",
+                        text = stringResource(R.string.permission_card_connected_title),
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSecondaryContainer,
                         style = MaterialTheme.typography.titleSmall
                     )
+                    val fallbackCalLabel = stringResource(R.string.status_local_calendar)
                     Text(
-                        text = syncedAccount.ifBlank { "Local Device Calendar" },
+                        text = syncedAccount.ifBlank { fallbackCalLabel },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
                     )
@@ -261,7 +264,7 @@ fun CalendarPermissionRequestCard(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Refresh,
-                        contentDescription = "Sync now",
+                        contentDescription = stringResource(R.string.agenda_action_sync_now),
                         tint = MaterialTheme.colorScheme.onSecondaryContainer,
                         modifier = Modifier.size(20.dp)
                     )

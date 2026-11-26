@@ -133,6 +133,12 @@ interface EventDao {
     suspend fun clearSyncedEvents()
 
     /**
+     * Remove any legacy seeded event rows in a single indexed SQL query.
+     */
+    @Query("DELETE FROM calendar_events WHERE id LIKE 'seed_%'")
+    suspend fun deleteLegacySeedEvents(): Int
+
+    /**
      * Clear all cached events (e.g. on full resync or account sign-out).
      */
     @Query("DELETE FROM calendar_events")

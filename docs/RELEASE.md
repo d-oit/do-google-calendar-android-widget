@@ -13,6 +13,7 @@ VERSION_MAJOR=0
 VERSION_MINOR=1
 VERSION_PATCH=0
 VERSION_CODE=1
+GITHUB_REPOSITORY=owner/repo
 ```
 
 - **Pre-1.0 (`0.x.y`)**: Initial stabilization and feature iteration (`0.1.0`, `0.2.0`, `0.2.1`).
@@ -21,9 +22,10 @@ VERSION_CODE=1
   - `MINOR`: Backwards-compatible features or widget capabilities.
   - `PATCH`: Backwards-compatible bug fixes and reliability patches.
 - **`VERSION_CODE`**: Strictly monotonically increasing integer (`1`, `2`, `3`, ...) required by Android and Google Play for every uploaded build.
+- **`GITHUB_REPOSITORY`**: Optional `owner/repo` slug embedded into `BuildConfig.GITHUB_REPOSITORY` for the user-initiated HTTPS **Check for Updates** button in the in-app About sheet. Leave empty if no public repository is configured yet.
 - **Git Tag Format**: `v<MAJOR>.<MINOR>.<PATCH>` (or pre-release `v<MAJOR>.<MINOR>.<PATCH>-rc.1`).
 
-The Release workflow enforces strict parity between the Git tag and `version.properties` so mismatched artifacts can never be published.
+The Release workflow enforces strict parity between the Git tag and `version.properties` so mismatched artifacts can never be published. Release builds enable R8 code minification (`isMinifyEnabled = true`) and resource shrinking (`isShrinkResources = true`), and signed releases archive `agenda-widget-<version>-mapping.txt` for crash deobfuscation.
 
 ---
 
@@ -53,12 +55,19 @@ If the three signing secrets above are not yet configured, the release pipeline 
 ## 3. Step-by-Step Release Process
 
 ### Step 1: Prepare the Release Commit
-1. Update `version.properties` with the target SemVer and incremented `VERSION_CODE`.
-2. Move completed items from `## [Unreleased]` to a dated section `## [0.1.0] - YYYY-MM-DD` in `CHANGELOG.md`.
+1. Bump `version.properties` (and optionally insert a dated changelog heading) using the helper script:
+   ```bash
+   # Preview next patch/minor/major bump
+   bash scripts/bump-version.sh patch --dry-run
+
+   # Apply bump and roll CHANGELOG.md section
+   bash scripts/bump-version.sh patch --update-changelog
+   ```
+2. Review `CHANGELOG.md` to ensure all completed items are documented under the new version heading.
 3. Run local verification:
    ```bash
    bash harness.sh
-   gradle :app:jacocoDebugUnitTestReport
+   gradle :app:jacocoDebugUnitTestReport :app:compileReleaseKotlin
    ```
 4. Merge the release preparation PR into `main` after all CI checks are green.
 

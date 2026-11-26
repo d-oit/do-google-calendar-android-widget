@@ -30,13 +30,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.R
 import com.example.data.model.EventEntity
-import com.example.data.repository.CalendarRepository
+import com.example.util.CalendarDateFormatter
 import com.example.util.rememberEventColorScheme
 
 /**
@@ -52,12 +55,14 @@ fun EventItemCard(
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     // Map event color properties from CalendarContract to UI color scheme
     val colorScheme = rememberEventColorScheme(event)
 
     Column(modifier = modifier.fillMaxWidth()) {
         // Section header for date if first of day
-        if (event.isFirstOfDay && event.dayHeader.isNotEmpty()) {
+        if (event.isFirstOfDay && (event.dayHeader.isNotEmpty() || event.startMillis > 0L)) {
+            val localizedHeader = CalendarDateFormatter.formatLocalizedDayHeader(context, event.startMillis)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -70,7 +75,7 @@ fun EventItemCard(
                     border = BorderStroke(0.5.dp, colorScheme.badgeBorder)
                 ) {
                     Text(
-                        text = event.dayHeader,
+                        text = localizedHeader,
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,
                         color = colorScheme.badgeText,
@@ -128,7 +133,8 @@ fun EventItemCard(
                         )
 
                         // Calendar Name Badge Pill with mapped colors
-                        val calName = event.calendarId.ifBlank { "Google Calendar" }
+                        val defaultCalName = stringResource(R.string.title_google_calendar)
+                        val calName = event.calendarId.ifBlank { defaultCalName }
                         Spacer(modifier = Modifier.width(8.dp))
                         Surface(
                             shape = RoundedCornerShape(6.dp),
@@ -169,10 +175,11 @@ fun EventItemCard(
                             tint = colorScheme.timeIconTint,
                             modifier = Modifier.size(14.dp)
                         )
-                        val timeStr = CalendarRepository.formatEventTime(
-                            event.startMillis,
-                            event.endMillis,
-                            event.isAllDay
+                        val timeStr = CalendarDateFormatter.formatEventTime(
+                            startMillis = event.startMillis,
+                            endMillis = event.endMillis,
+                            isAllDay = event.isAllDay,
+                            context = context
                         )
                         Text(
                             text = timeStr,
@@ -211,7 +218,7 @@ fun EventItemCard(
                 ) {
                     Icon(
                         imageVector = Icons.Default.DeleteOutline,
-                        contentDescription = "Delete event",
+                        contentDescription = stringResource(R.string.action_delete_event),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                     )
                 }

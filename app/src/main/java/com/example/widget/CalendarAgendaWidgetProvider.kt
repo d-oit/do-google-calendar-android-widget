@@ -21,14 +21,13 @@ import com.example.data.db.AppDatabase
 import com.example.data.pref.WidgetPreferencesManager
 import com.example.data.repository.CalendarRepository
 import com.example.util.AppLogger
+import com.example.util.CalendarDateFormatter
+import com.example.util.RuntimeEnvironment
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 class CalendarAgendaWidgetProvider : AppWidgetProvider() {
 
@@ -92,40 +91,47 @@ class CalendarAgendaWidgetProvider : AppWidgetProvider() {
         }
     }
 
+    /**
+     * Resolves widget list clicks safely against the local Room database rather than trusting
+     * URL extras on this exported [AppWidgetProvider] broadcast receiver.
+     */
     private fun handleItemClick(context: Context, intent: Intent) {
         val eventId = intent.getStringExtra(EXTRA_EVENT_ID)
         val eventTitle = intent.getStringExtra(EXTRA_EVENT_TITLE)
-        val eventLink = intent.getStringExtra(EXTRA_EVENT_LINK)
-        val startMillis = intent.getLongExtra(EXTRA_START_MILLIS, 0L)
 
-        val isSafeWebUrl = !eventLink.isNullOrBlank() &&
-            (eventLink.startsWith("https://", ignoreCase = true) || eventLink.startsWith("http://", ignoreCase = true))
-        val isCalendarContentUri = !eventLink.isNullOrBlank() &&
-            eventLink.startsWith("content://com.android.calendar/", ignoreCase = true)
-
-        val openIntent = when {
-            isSafeWebUrl || isCalendarContentUri -> {
-                Intent(Intent.ACTION_VIEW, Uri.parse(eventLink)).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                }
-            }
-            startMillis > 0 -> {
-                val builder = Uri.parse("content://com.android.calendar/time").buildUpon()
-                ContentUris.appendId(builder, startMillis)
-                Intent(Intent.ACTION_VIEW).apply {
-                    data = builder.build()
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                }
-            }
-            else -> {
-                Intent(context, MainActivity::class.java).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-                    putExtra(EXTRA_EVENT_ID, eventId)
-                    putExtra(EXTRA_EVENT_TITLE, eventTitle)
-                }
-            }
+        if (RuntimeEnvironment.isRunningInTestEnvironment) {
+            val openIntent = resolveVerifiedItemClickIntent(context, eventId, eventTitle)
+            launchResolvedIntent(context, openIntent, eventId, eventTitle)
+            return
         }
 
+        val pendingResult = try {
+            goAsync()
+        } catch (e: IllegalStateException) {
+            AppLogger.d(AppLogger.TAG_WIDGET, "goAsync unavailable for item click: ${e.message}")
+            null
+        }
+        val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
+            AppLogger.w(AppLogger.TAG_WIDGET, "Failed resolving verified widget click target", throwable)
+            openFallbackActivity(context, eventId, eventTitle)
+            pendingResult?.finish()
+        }
+        CoroutineScope(Dispatchers.IO + exceptionHandler).launch {
+            try {
+                val openIntent = resolveVerifiedItemClickIntent(context, eventId, eventTitle)
+                launchResolvedIntent(context, openIntent, eventId, eventTitle)
+            } finally {
+                pendingResult?.finish()
+            }
+        }
+    }
+
+    private fun launchResolvedIntent(
+        context: Context,
+        openIntent: Intent,
+        eventId: String?,
+        eventTitle: String?
+    ) {
         try {
             context.startActivity(openIntent)
         } catch (e: ActivityNotFoundException) {
@@ -139,11 +145,7 @@ class CalendarAgendaWidgetProvider : AppWidgetProvider() {
 
     private fun openFallbackActivity(context: Context, eventId: String?, eventTitle: String?) {
         try {
-            val fallbackIntent = Intent(context, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-                putExtra(EXTRA_EVENT_ID, eventId)
-                putExtra(EXTRA_EVENT_TITLE, eventTitle)
-            }
+            val fallbackIntent = buildFallbackMainActivityIntent(context, eventId, eventTitle)
             context.startActivity(fallbackIntent)
         } catch (ex: Exception) {
             AppLogger.e(AppLogger.TAG_WIDGET, "Failed to launch fallback MainActivity from widget click", ex)
@@ -191,13 +193,6 @@ class CalendarAgendaWidgetProvider : AppWidgetProvider() {
         @Volatile
         internal var isWidgetSyncing: Boolean = false
 
-        private val narrowDateFormat = ThreadLocal.withInitial {
-            SimpleDateFormat("EEE, MMM d", Locale.getDefault())
-        }
-        private val wideDateFormat = ThreadLocal.withInitial {
-            SimpleDateFormat("EEEE, MMM d", Locale.getDefault())
-        }
-
         internal fun resolveRepository(context: Context): CalendarRepository {
             val appRepo = runCatching { CalendarApp.instance.repository }.getOrNull()
             if (appRepo != null) return appRepo
@@ -206,6 +201,69 @@ class CalendarAgendaWidgetProvider : AppWidgetProvider() {
                 AppDatabase.getInstance(context.applicationContext).eventDao(),
                 WidgetPreferencesManager.getInstance(context.applicationContext)
             )
+        }
+
+        /**
+         * Verifies [eventId] against the local Room event cache before building any external
+         * `ACTION_VIEW` intent. Untrusted extras (such as spoofed `EXTRA_EVENT_LINK` values)
+         * are never used to launch arbitrary URIs.
+         */
+        internal fun resolveVerifiedItemClickIntent(
+            context: Context,
+            eventId: String?,
+            eventTitle: String? = null
+        ): Intent {
+            if (eventId.isNullOrBlank()) {
+                return buildFallbackMainActivityIntent(context, null, eventTitle)
+            }
+            val verifiedEvent = try {
+                AppDatabase.getInstance(context.applicationContext).eventDao().getEventByIdSync(eventId)
+            } catch (e: Exception) {
+                AppLogger.w(AppLogger.TAG_WIDGET, "Failed verifying widget event id against Room cache", e)
+                null
+            } ?: return buildFallbackMainActivityIntent(context, eventId, eventTitle)
+
+            val storedLink = verifiedEvent.htmlLink?.trim()
+            if (isVerifiedSafeEventUri(storedLink)) {
+                return Intent(Intent.ACTION_VIEW, Uri.parse(storedLink)).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+            }
+
+            if (verifiedEvent.startMillis > 0L) {
+                val builder = Uri.parse("content://com.android.calendar/time").buildUpon()
+                ContentUris.appendId(builder, verifiedEvent.startMillis)
+                return Intent(Intent.ACTION_VIEW).apply {
+                    data = builder.build()
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+            }
+
+            return buildFallbackMainActivityIntent(context, verifiedEvent.id, verifiedEvent.title)
+        }
+
+        internal fun isVerifiedSafeEventUri(rawUri: String?): Boolean {
+            if (rawUri.isNullOrBlank()) return false
+            val parsed = runCatching { Uri.parse(rawUri) }.getOrNull() ?: return false
+            val scheme = parsed.scheme?.lowercase() ?: return false
+            val host = parsed.host?.lowercase() ?: return false
+            return when (scheme) {
+                "content" -> host == "com.android.calendar"
+                "https" -> host.isNotBlank() && !host.contains("..")
+                else -> false
+            }
+        }
+
+        private fun buildFallbackMainActivityIntent(
+            context: Context,
+            eventId: String?,
+            eventTitle: String?
+        ): Intent {
+            return Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                if (!eventId.isNullOrBlank()) putExtra(EXTRA_EVENT_ID, eventId)
+                if (!eventTitle.isNullOrBlank()) putExtra(EXTRA_EVENT_TITLE, eventTitle)
+            }
         }
 
         internal suspend fun performForceSync(
@@ -230,6 +288,9 @@ class CalendarAgendaWidgetProvider : AppWidgetProvider() {
             } finally {
                 isWidgetSyncing = false
                 refreshWidgetLayouts(context, isSyncing = false)
+                if (!RuntimeEnvironment.isRunningInTestEnvironment) {
+                    GlanceWidgetUpdater.updateAllGlanceWidgets(context.applicationContext)
+                }
             }
         }
 
@@ -278,8 +339,7 @@ class CalendarAgendaWidgetProvider : AppWidgetProvider() {
             val isNarrow = minWidthDp in 1..180
             views.setViewVisibility(R.id.widget_app_icon, if (isNarrow) View.GONE else View.VISIBLE)
 
-            val dateFormatter = if (isNarrow) narrowDateFormat.get() else wideDateFormat.get()
-            val dateTitle = dateFormatter?.format(Date()) ?: ""
+            val dateTitle = CalendarDateFormatter.formatWidgetHeaderDate(isNarrow = isNarrow)
             views.setTextViewText(R.id.widget_date_title, dateTitle)
             views.setTextViewTextSize(R.id.widget_date_title, TypedValue.COMPLEX_UNIT_SP, prefs.density.titleSp)
 
@@ -287,7 +347,7 @@ class CalendarAgendaWidgetProvider : AppWidgetProvider() {
             val syncLabel = if (syncing) {
                 context.getString(R.string.widget_sync_in_progress)
             } else {
-                CalendarRepository.formatLastSyncIndicator(
+                CalendarDateFormatter.formatLastSyncIndicator(
                     context = context,
                     lastSyncMillis = lastSyncMillis,
                     compact = isNarrow
@@ -304,7 +364,7 @@ class CalendarAgendaWidgetProvider : AppWidgetProvider() {
             views.setTextColor(R.id.widget_sync_time_text, theme.subtitleColor)
             views.setInt(R.id.widget_sync_dot, "setColorFilter", syncDotColor)
             val syncTooltip = if (lastSyncMillis > 0L) {
-                val fullTime = CalendarRepository.formatLastSyncIndicator(context, lastSyncMillis, compact = false)
+                val fullTime = CalendarDateFormatter.formatLastSyncIndicator(context, lastSyncMillis, compact = false)
                 "${context.getString(R.string.widget_refresh_desc)} ($fullTime)"
             } else {
                 "${context.getString(R.string.widget_refresh_desc)} (${context.getString(R.string.widget_sync_tooltip_never)})"

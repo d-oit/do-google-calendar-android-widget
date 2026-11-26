@@ -5,6 +5,7 @@ import com.example.data.db.AppDatabase
 import com.example.data.pref.WidgetPreferencesManager
 import com.example.data.repository.CalendarRepository
 import com.example.util.AppLogger
+import com.example.util.RuntimeEnvironment
 import com.example.worker.CalendarSyncScheduler
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
@@ -30,7 +31,7 @@ class CalendarApp : Application() {
         instance = this
         AppLogger.d(AppLogger.TAG_APP, "CalendarApp initialized")
 
-        if (!isRunningInTestEnvironment()) {
+        if (!RuntimeEnvironment.isRunningInTestEnvironment) {
             CalendarSyncScheduler.schedulePeriodicSync(this)
             // Synchronize genuine Google Calendar events directly from device accounts
             applicationScope.launch {
@@ -45,13 +46,5 @@ class CalendarApp : Application() {
     companion object {
         lateinit var instance: CalendarApp
             private set
-
-        private fun isRunningInTestEnvironment(): Boolean {
-            return try {
-                Class.forName("org.robolectric.Robolectric") != null
-            } catch (_: ClassNotFoundException) {
-                false
-            }
-        }
     }
 }
