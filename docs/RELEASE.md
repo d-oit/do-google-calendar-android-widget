@@ -1,6 +1,6 @@
 # Release Management Playbook
 
-This document defines the standardized GitHub release lifecycle for **Agenda Widget**, starting from version **0.1.0**.
+This document defines the standardized GitHub release lifecycle for **d.o.it Agenda Widget**, starting from version **0.1.0**.
 
 ---
 

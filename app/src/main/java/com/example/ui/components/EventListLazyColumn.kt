@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.R
 import com.example.data.model.EventEntity
+import com.example.data.pref.WidgetPreferences
 import com.example.ui.AgendaFilterCategory
 import com.example.ui.CalendarViewModel
 
@@ -81,7 +82,7 @@ import com.example.ui.CalendarViewModel
 fun EventListLazyColumn(
     viewModel: CalendarViewModel,
     modifier: Modifier = Modifier,
-    contentPadding: PaddingValues = PaddingValues(bottom = 80.dp),
+    contentPadding: PaddingValues = PaddingValues(bottom = 112.dp),
     onEventClick: (EventEntity) -> Unit = { viewModel.selectEvent(it) },
     onDeleteEvent: (String) -> Unit = { viewModel.deleteEvent(it) },
     onAddEvent: () -> Unit = { viewModel.openAddEventDialog() },
@@ -116,6 +117,7 @@ fun EventListLazyColumn(
         availableCalendarsCount = uiState.availableCalendars.size,
         hiddenEventsOutsideFilterCount = hiddenOutsideFilter,
         activeDaysHorizon = uiState.widgetPreferences.daysHorizon,
+        widgetPreferences = uiState.widgetPreferences,
         onEventClick = onEventClick,
         onDeleteEvent = onDeleteEvent,
         onAddEvent = onAddEvent,
@@ -149,7 +151,8 @@ fun EventListLazyColumn(
     availableCalendarsCount: Int = 0,
     hiddenEventsOutsideFilterCount: Int = 0,
     activeDaysHorizon: Int = 7,
-    contentPadding: PaddingValues = PaddingValues(bottom = 80.dp),
+    widgetPreferences: WidgetPreferences = WidgetPreferences(),
+    contentPadding: PaddingValues = PaddingValues(bottom = 112.dp),
     onEventClick: (EventEntity) -> Unit = {},
     onDeleteEvent: (String) -> Unit = {},
     onAddEvent: () -> Unit = {},
@@ -211,7 +214,8 @@ fun EventListLazyColumn(
                     EventItemCard(
                         event = event,
                         onClick = { onEventClick(event) },
-                        onDelete = { onDeleteEvent(event.id) }
+                        onDelete = { onDeleteEvent(event.id) },
+                        widgetPreferences = widgetPreferences
                     )
                 }
             }
@@ -245,9 +249,9 @@ fun FriendlyEmptyEventsState(
             .testTag("friendly_empty_state_card"),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
         ),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
     ) {
         Column(
             modifier = Modifier

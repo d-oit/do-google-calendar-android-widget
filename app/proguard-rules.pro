@@ -1,4 +1,4 @@
-# R8 / ProGuard rules for Agenda Widget release builds
+# R8 / ProGuard rules for d.o.it Agenda Widget release builds
 
 # Preserve line numbers for crash diagnostics while anonymizing source filenames
 -keepattributes SourceFile,LineNumberTable

@@ -150,6 +150,7 @@ fun AgendaScheduleContent(
             availableCalendarsCount = uiState.availableCalendars.size,
             hiddenEventsOutsideFilterCount = hiddenOutsideFilter,
             activeDaysHorizon = uiState.widgetPreferences.daysHorizon,
+            widgetPreferences = uiState.widgetPreferences,
             onEventClick = onSelectEvent,
             onDeleteEvent = onDeleteEvent,
             onAddEvent = onOpenAddEvent,

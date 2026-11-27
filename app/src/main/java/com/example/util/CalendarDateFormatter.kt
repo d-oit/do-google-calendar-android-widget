@@ -3,6 +3,7 @@ package com.example.util
 import android.content.Context
 import android.text.format.DateFormat
 import com.example.R
+import com.example.data.pref.WidgetTimeDisplayMode
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -132,13 +133,20 @@ object CalendarDateFormatter {
         startMillis: Long,
         endMillis: Long,
         isAllDay: Boolean,
-        context: Context? = null
+        context: Context? = null,
+        timeDisplayMode: WidgetTimeDisplayMode = WidgetTimeDisplayMode.FULL_RANGE
     ): String {
+        if (timeDisplayMode == WidgetTimeDisplayMode.HIDE) {
+            return ""
+        }
         if (isAllDay) {
             return context?.getString(R.string.event_all_day_label) ?: "All day"
         }
         val is24Hour = context?.let { runCatching { DateFormat.is24HourFormat(it) }.getOrDefault(false) } ?: false
         val startStr = formatTime(startMillis, is24Hour)
+        if (timeDisplayMode == WidgetTimeDisplayMode.START_ONLY) {
+            return startStr
+        }
         val endStr = formatTime(endMillis, is24Hour)
         return "$startStr – $endStr"
     }
@@ -152,6 +160,42 @@ object CalendarDateFormatter {
         val dateStr = formatFullDate(startMillis)
         val timeStr = formatEventTime(startMillis, endMillis, isAllDay, context)
         return "$dateStr • $timeStr"
+    }
+
+    /**
+     * Subtle live timing cue for widget event rows:
+     * - Returns `NOW` when a timed event is currently in progress.
+     * - Returns `In Xm` when a timed event starts within the next 60 minutes.
+     * - Returns `null` for all-day events or events further away to prevent visual clutter.
+     */
+    data class EventTimingCue(
+        val label: String,
+        val isLive: Boolean
+    )
+
+    fun formatEventTimingCue(
+        context: Context,
+        startMillis: Long,
+        endMillis: Long,
+        isAllDay: Boolean,
+        nowMillis: Long = System.currentTimeMillis()
+    ): EventTimingCue? {
+        if (isAllDay || startMillis <= 0L) return null
+        if (nowMillis in startMillis until endMillis) {
+            return EventTimingCue(
+                label = context.getString(R.string.widget_badge_now),
+                isLive = true
+            )
+        }
+        val millisUntilStart = startMillis - nowMillis
+        if (millisUntilStart in 1L..(60L * 60_000L)) {
+            val minutes = ((millisUntilStart + 59_999L) / 60_000L).coerceIn(1L, 60L).toInt()
+            return EventTimingCue(
+                label = context.getString(R.string.widget_badge_in_minutes, minutes),
+                isLive = false
+            )
+        }
+        return null
     }
 
     fun formatLastSyncIndicator(

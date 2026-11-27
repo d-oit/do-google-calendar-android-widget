@@ -108,7 +108,7 @@ internal class CalendarEventWriter(
             put(CalendarContract.Events.DTSTART, dtStart)
             put(CalendarContract.Events.DTEND, dtEnd)
             put(CalendarContract.Events.TITLE, title)
-            put(CalendarContract.Events.DESCRIPTION, description?.trim()?.ifEmpty { null } ?: "Created via Agenda Widget")
+            put(CalendarContract.Events.DESCRIPTION, description?.trim()?.ifEmpty { null } ?: "Created via d.o.it Agenda Widget")
             put(CalendarContract.Events.CALENDAR_ID, calendarId)
             put(CalendarContract.Events.EVENT_TIMEZONE, if (isAllDay) "UTC" else TimeZone.getDefault().id)
             put(CalendarContract.Events.ALL_DAY, if (isAllDay) 1 else 0)

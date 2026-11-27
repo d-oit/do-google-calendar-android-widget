@@ -1,5 +1,5 @@
 name: Bug Report
-description: Report a defect in the Agenda Widget app, home screen widget, or calendar sync.
+description: Report a defect in the d.o.it Agenda Widget app, home screen widget, or calendar sync.
 title: "[Bug]: "
 labels: ["bug", "triage"]
 body:
@@ -57,7 +57,7 @@ body:
     attributes:
       label: Steps to Reproduce
       placeholder: |
-        1. Place the Agenda Widget on the home screen.
+        1. Place the d.o.it Agenda Widget on the home screen.
         2. Adjust opacity to 50% and tap Apply.
         3. Observe...
     validations:

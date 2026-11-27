@@ -1,6 +1,7 @@
 package com.example
 
 import android.app.Application
+import android.content.res.Configuration
 import com.example.data.db.AppDatabase
 import com.example.data.pref.WidgetPreferencesManager
 import com.example.data.repository.CalendarRepository
@@ -26,9 +27,13 @@ class CalendarApp : Application() {
 
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default + exceptionHandler)
 
+    @Volatile
+    private var lastNightMode: Int = Configuration.UI_MODE_NIGHT_UNDEFINED
+
     override fun onCreate() {
         super.onCreate()
         instance = this
+        lastNightMode = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
         AppLogger.d(AppLogger.TAG_APP, "CalendarApp initialized")
 
         if (!RuntimeEnvironment.isRunningInTestEnvironment) {
@@ -40,6 +45,16 @@ class CalendarApp : Application() {
                         AppLogger.w(AppLogger.TAG_APP, "Initial background sync did not complete: ${error.message}")
                     }
             }
+        }
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        val newNightMode = newConfig.uiMode and Configuration.UI_MODE_NIGHT_MASK
+        if (newNightMode != lastNightMode) {
+            lastNightMode = newNightMode
+            AppLogger.d(AppLogger.TAG_WIDGET, "System night mode changed ($newNightMode); refreshing widgets")
+            preferencesManager.notifyWidgetsChanged(debounced = false)
         }
     }
 

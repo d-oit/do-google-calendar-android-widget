@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "Agenda Widget"
+rootProject.name = "d.o.it Agenda Widget"
 
 include(":app")

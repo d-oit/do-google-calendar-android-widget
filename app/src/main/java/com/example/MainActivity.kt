@@ -36,7 +36,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -50,24 +52,30 @@ import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.ViewAgenda
 import androidx.compose.material.icons.filled.Widgets
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -76,6 +84,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -196,6 +205,7 @@ fun CalendarMainScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var selectedTab by remember(initialTab) { mutableIntStateOf(initialTab) }
+    var isOverflowMenuOpen by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
     val calendarPermissionLauncher = rememberCalendarPermissionLauncher { isGranted ->
@@ -272,6 +282,7 @@ fun CalendarMainScreen(
                         when (event.action) {
                             ErrorAction.RETRY_SYNC -> viewModel.onSyncNow()
                             ErrorAction.OPEN_SETTINGS -> openAppPermissionSettings(context)
+                            ErrorAction.UNDO_WIDGET_RESET -> viewModel.undoWidgetPreferencesReset()
                             ErrorAction.NONE -> Unit
                         }
                     }
@@ -401,28 +412,6 @@ fun CalendarMainScreen(
                 },
                 actions = {
                     IconButton(
-                        onClick = { viewModel.openAboutSheet() },
-                        modifier = Modifier.testTag("topbar_about_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Info,
-                            contentDescription = stringResource(R.string.about_open_desc),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
-                    IconButton(
-                        onClick = { viewModel.openDiagnosticsSheet() },
-                        modifier = Modifier.testTag("topbar_diagnostics_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Build,
-                            contentDescription = stringResource(R.string.diagnostics_open_desc),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
-                    IconButton(
                         onClick = { viewModel.onSyncNow() },
                         enabled = !uiState.isSyncing,
                         modifier = Modifier.testTag("topbar_sync_button")
@@ -435,6 +424,72 @@ fun CalendarMainScreen(
                                 .size(24.dp)
                                 .then(if (uiState.isSyncing) Modifier.rotate(rotationAngle) else Modifier)
                         )
+                    }
+                    Box {
+                        IconButton(
+                            onClick = { isOverflowMenuOpen = true },
+                            modifier = Modifier.testTag("topbar_overflow_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = stringResource(R.string.topbar_more_options_desc),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = isOverflowMenuOpen,
+                            onDismissRequest = { isOverflowMenuOpen = false },
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            modifier = Modifier.testTag("topbar_overflow_menu")
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.menu_reset_widget_defaults)) },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.RestartAlt,
+                                        contentDescription = null
+                                    )
+                                },
+                                onClick = {
+                                    isOverflowMenuOpen = false
+                                    viewModel.resetWidgetPreferencesToDefault(
+                                        confirmationMessage = context.getString(R.string.msg_widget_reset_defaults),
+                                        undoActionLabel = context.getString(R.string.action_undo)
+                                    )
+                                },
+                                modifier = Modifier.testTag("overflow_reset_item")
+                            )
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.menu_sync_diagnostics)) },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Build,
+                                        contentDescription = null
+                                    )
+                                },
+                                onClick = {
+                                    isOverflowMenuOpen = false
+                                    viewModel.openDiagnosticsSheet()
+                                },
+                                modifier = Modifier.testTag("overflow_diagnostics_item")
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.menu_about_updates)) },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Info,
+                                        contentDescription = null
+                                    )
+                                },
+                                onClick = {
+                                    isOverflowMenuOpen = false
+                                    viewModel.openAboutSheet()
+                                },
+                                modifier = Modifier.testTag("overflow_about_item")
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -480,8 +535,9 @@ fun CalendarMainScreen(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
+                            .navigationBarsPadding()
                             .testTag("left_pane_content"),
-                        contentPadding = PaddingValues(bottom = 88.dp),
+                        contentPadding = PaddingValues(bottom = 112.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         item {
@@ -508,7 +564,15 @@ fun CalendarMainScreen(
                                 lastSyncTime = uiState.lastSyncTime,
                                 onRefresh = { viewModel.onSyncNow() },
                                 onPinWidget = { viewModel.openPinWidgetChooser() },
-                                onAddEvent = { viewModel.openAddEventDialog() }
+                                onAddEvent = { viewModel.openAddEventDialog() },
+                                onOpenCalendar = {
+                                    if (!openGoogleCalendarApp(context)) {
+                                        viewModel.notifyMessage(
+                                            context.getString(R.string.msg_open_calendar_app_failed),
+                                            isError = true
+                                        )
+                                    }
+                                }
                             )
                         }
 
@@ -548,25 +612,90 @@ fun CalendarMainScreen(
                         .fillMaxSize()
                         .testTag("compact_container")
                 ) {
-                    TabRow(
-                        selectedTabIndex = selectedTab,
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        contentColor = MaterialTheme.colorScheme.primary
+                    // Authentic Material 3 Single-Choice Segmented Button bar (no "(0)" counts)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.surface)
+                            .padding(horizontal = 16.dp, vertical = 10.dp)
                     ) {
-                        Tab(
-                            selected = selectedTab == 0,
-                            onClick = { selectedTab = 0 },
-                            text = { Text("${stringResource(R.string.tab_agenda)} (${uiState.events.size})", fontWeight = FontWeight.SemiBold) },
-                            icon = { Icon(Icons.Default.ViewAgenda, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                            modifier = Modifier.testTag("tab_agenda")
-                        )
-                        Tab(
-                            selected = selectedTab == 1,
-                            onClick = { selectedTab = 1 },
-                            text = { Text(stringResource(R.string.tab_widget_setup), fontWeight = FontWeight.SemiBold) },
-                            icon = { Icon(Icons.Default.Widgets, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                            modifier = Modifier.testTag("tab_widget")
-                        )
+                        SingleChoiceSegmentedButtonRow(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("main_segmented_tabs")
+                        ) {
+                            SegmentedButton(
+                                selected = selectedTab == 0,
+                                onClick = { selectedTab = 0 },
+                                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                                icon = {
+                                    SegmentedButtonDefaults.Icon(
+                                        active = selectedTab == 0,
+                                        inactiveContent = {
+                                            Icon(
+                                                imageVector = Icons.Default.ViewAgenda,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    )
+                                },
+                                colors = SegmentedButtonDefaults.colors(
+                                    activeContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                    activeContentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    inactiveContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                                    inactiveContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    activeBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                                    inactiveBorderColor = MaterialTheme.colorScheme.outlineVariant
+                                ),
+                                modifier = Modifier
+                                    .heightIn(min = 48.dp)
+                                    .testTag("tab_agenda")
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.tab_agenda),
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+
+                            SegmentedButton(
+                                selected = selectedTab == 1,
+                                onClick = { selectedTab = 1 },
+                                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                                icon = {
+                                    SegmentedButtonDefaults.Icon(
+                                        active = selectedTab == 1,
+                                        inactiveContent = {
+                                            Icon(
+                                                imageVector = Icons.Default.Widgets,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    )
+                                },
+                                colors = SegmentedButtonDefaults.colors(
+                                    activeContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                    activeContentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    inactiveContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                                    inactiveContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    activeBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                                    inactiveBorderColor = MaterialTheme.colorScheme.outlineVariant
+                                ),
+                                modifier = Modifier
+                                    .heightIn(min = 48.dp)
+                                    .testTag("tab_widget")
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.tab_widget_setup),
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
                     }
 
                     if (selectedTab == 0) {
@@ -608,8 +737,9 @@ fun CalendarMainScreen(
                         LazyColumn(
                             modifier = Modifier
                                 .fillMaxSize()
+                                .navigationBarsPadding()
                                 .padding(horizontal = 16.dp),
-                            contentPadding = PaddingValues(top = 16.dp, bottom = 96.dp),
+                            contentPadding = PaddingValues(top = 12.dp, bottom = 112.dp),
                             verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
                             item {
@@ -620,7 +750,15 @@ fun CalendarMainScreen(
                                     lastSyncTime = uiState.lastSyncTime,
                                     onRefresh = { viewModel.onSyncNow() },
                                     onPinWidget = { viewModel.openPinWidgetChooser() },
-                                    onAddEvent = { viewModel.openAddEventDialog() }
+                                    onAddEvent = { viewModel.openAddEventDialog() },
+                                    onOpenCalendar = {
+                                        if (!openGoogleCalendarApp(context)) {
+                                            viewModel.notifyMessage(
+                                                context.getString(R.string.msg_open_calendar_app_failed),
+                                                isError = true
+                                            )
+                                        }
+                                    }
                                 )
                             }
 

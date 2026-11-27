@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Agenda Widget</string>
+    <string name="app_name">d.o.it Agenda Widget</string>
     <string name="classic_widget_label">Kalender-Agenda</string>
     <string name="widget_description">Zeigt deine anstehende Google Kalender-Agenda mit schneller Aktualisierung und Direktzugriff.</string>
     <string name="title_google_calendar">Google Kalender</string>
@@ -47,7 +47,7 @@
 
     <!-- Permission card -->
     <string name="permission_card_title">Gerätekalender verbinden</string>
-    <string name="permission_card_body">Agenda Widget liest direkt aus dem Android-Kalenderanbieter — ganz ohne Cloud-Server oder API-Schlüssel. Erteile die Kalenderberechtigung, um deine Google Kalender-Termine zu synchronisieren.</string>
+    <string name="permission_card_body">d.o.it Agenda Widget liest direkt aus dem Android-Kalenderanbieter — ganz ohne Cloud-Server oder API-Schlüssel. Erteile die Kalenderberechtigung, um deine Google Kalender-Termine zu synchronisieren.</string>
     <string name="permission_card_action_grant">Kalenderzugriff erlauben</string>
     <string name="permission_card_action_settings">App-Einstellungen öffnen</string>
     <string name="permission_card_privacy_note">Deine Kalenderdaten bleiben auf deinem Gerät.</string>
@@ -111,6 +111,15 @@
     <string name="widget_customizer_subtitle">Deckkraft, Farbschema und Kalenderquellen anpassen</string>
     <string name="widget_customizer_custom_filter">Eigener Filter</string>
     <string name="widget_customizer_display_toggles">Anzeigeoptionen</string>
+    <string name="widget_customizer_title_lines_label">Titelzeilen</string>
+    <string name="widget_title_lines_full">Vollständig</string>
+    <string name="widget_title_lines_two">2 Zeilen</string>
+    <string name="widget_title_lines_one">1 Zeile</string>
+    <string name="widget_customizer_time_display_label">Zeitanzeige</string>
+    <string name="widget_time_display_range">Zeitraum</string>
+    <string name="widget_time_display_start_only">Nur Start</string>
+    <string name="widget_time_display_hide">Ausblenden</string>
+    <string name="widget_customizer_show_calendar_name">Kalendernamen als Untertitel anzeigen</string>
     <string name="widget_customizer_show_locations">Orte und Meeting-Links anzeigen</string>
     <string name="widget_customizer_show_day_headers">Datumsüberschriften anzeigen</string>
     <string name="widget_customizer_show_past">Vergangene Termine von heute anzeigen</string>
@@ -131,7 +140,7 @@
     <string name="pin_chooser_classic_desc">Vollständig scrollbare Terminliste mit eigener Deckkraft, Farbschemata und Direktzugriff.</string>
 
     <!-- Widget Strings -->
-    <string name="widget_no_events">Keine anstehenden Termine</string>
+    <string name="widget_no_events">Heute keine weiteren Termine</string>
     <string name="widget_default_title">Anstehende Agenda</string>
     <string name="widget_new_event_desc">Neuer Termin</string>
     <string name="widget_refresh_desc">Zeitplan aktualisieren</string>
@@ -204,8 +213,8 @@
     <string name="diagnostics_calendar_events_count">%1$d anstehend</string>
 
     <!-- About & Updates Bottom Sheet -->
-    <string name="about_open_desc">Über Agenda Widget und Updates</string>
-    <string name="about_sheet_title">Über Agenda Widget</string>
+    <string name="about_open_desc">Über d.o.it Agenda Widget und Updates</string>
+    <string name="about_sheet_title">Über d.o.it Agenda Widget</string>
     <string name="about_sheet_subtitle">Nativer Android-Kalender-Begleiter &amp; Startbildschirm-Widgets</string>
     <string name="about_version_label">Version</string>
     <string name="about_build_label">Build-Nummer</string>
@@ -215,7 +224,7 @@
     <string name="about_privacy_title">Lokaler Datenschutz zuerst</string>
     <string name="about_privacy_body">Liest deinen Kalender direkt über Android CalendarContract ohne API-Schlüssel oder Analyse-Tracker; der private Cache ist von Cloud-Backups ausgeschlossen.</string>
     <string name="about_updates_title">Versions-Updates</string>
-    <string name="about_updates_idle">Prüfe GitHub Releases per HTTPS auf eine neuere Version von Agenda Widget.</string>
+    <string name="about_updates_idle">Prüfe GitHub Releases per HTTPS auf eine neuere Version von d.o.it Agenda Widget.</string>
     <string name="about_updates_checking">Prüfe GitHub Releases…</string>
     <string name="about_updates_up_to_date">Du verwendest die neueste Version (v%1$s).</string>
     <string name="about_updates_available">Version v%1$s ist verfügbar (installiert: v%2$s).</string>
@@ -225,7 +234,7 @@
     <string name="about_action_open_release">Release auf GitHub ansehen</string>
     <string name="about_action_open_diagnostics">Sync-Diagnose öffnen</string>
     <string name="about_action_app_language">App-Sprache</string>
-    <string name="about_language_hint">Sprache ändern unter Android-Einstellungen → Apps → Agenda Widget → Sprache.</string>
+    <string name="about_language_hint">Sprache ändern unter Android-Einstellungen → Apps → d.o.it Agenda Widget → Sprache.</string>
 
     <!-- Additional localized dialog, empty state, and permission copy -->
     <string name="action_ok">OK</string>
@@ -254,4 +263,25 @@
     <string name="status_local_calendar_active">Lokaler Kalender aktiv (Google-Konto in den Android-Einstellungen hinzufügen)</string>
     <string name="diagnostics_logs_show">Anzeigen</string>
     <string name="diagnostics_logs_hide">Ausblenden</string>
+
+    <!-- Material 3 Overhaul: Top Bar Overflow, Wallpaper Preview, Customizer Sections & Widget Cues -->
+    <string name="topbar_more_options_desc">Weitere Optionen</string>
+    <string name="menu_reset_widget_defaults">Auf Standard zurücksetzen</string>
+    <string name="menu_sync_diagnostics">Sync-Diagnose</string>
+    <string name="menu_about_updates">Über &amp; Updates</string>
+    <string name="msg_widget_reset_defaults">Widget-Einstellungen auf Standard zurückgesetzt.</string>
+    <string name="action_undo">Rückgängig</string>
+    <string name="widget_wallpaper_label">Hintergrund</string>
+    <string name="widget_wallpaper_dark">Dunkel</string>
+    <string name="widget_wallpaper_light">Hell</string>
+    <string name="widget_wallpaper_vibrant">Lebendig</string>
+    <string name="widget_customizer_section_appearance">Erscheinungsbild</string>
+    <string name="widget_customizer_section_typography">Typografie &amp; Layout</string>
+    <string name="widget_customizer_section_schedule">Zeitplan &amp; Kalender</string>
+    <string name="widget_customizer_section_display">Anzeigeoptionen</string>
+    <string name="widget_customizer_pin_compact">Zum Startbildschirm</string>
+    <string name="widget_empty_action_add">Termin erstellen</string>
+    <string name="widget_empty_action_calendar">Kalender öffnen</string>
+    <string name="widget_badge_now">JETZT</string>
+    <string name="widget_badge_in_minutes">In %1$d Min.</string>
 </resources>

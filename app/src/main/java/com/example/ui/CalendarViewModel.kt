@@ -46,7 +46,8 @@ import kotlinx.coroutines.launch
 enum class ErrorAction {
     NONE,
     RETRY_SYNC,
-    OPEN_SETTINGS
+    OPEN_SETTINGS,
+    UNDO_WIDGET_RESET
 }
 
 enum class WidgetPinType {
@@ -221,6 +222,7 @@ class CalendarViewModel(
     private var providerObserverJob: Job? = null
     private var debouncedObserverSyncJob: Job? = null
     private var lastResumeSyncMillis: Long = 0L
+    private var previousPreferencesBeforeReset: WidgetPreferences? = null
 
     private val _uiEvents = MutableSharedFlow<UiEvent>(extraBufferCapacity = 8)
     val uiEvents: SharedFlow<UiEvent> = _uiEvents.asSharedFlow()
@@ -645,6 +647,30 @@ class CalendarViewModel(
         }
     }
 
+    fun resetWidgetPreferencesToDefault(
+        confirmationMessage: String = "Widget settings reset to defaults.",
+        undoActionLabel: String = "Undo"
+    ) {
+        val current = preferencesManager.getPreferences()
+        val defaults = WidgetPreferences()
+        previousPreferencesBeforeReset = current
+        updateWidgetPreferences(defaults)
+        _uiEvents.tryEmit(
+            UiEvent.ShowSnackbar(
+                message = confirmationMessage,
+                actionLabel = if (current != defaults) undoActionLabel else null,
+                action = if (current != defaults) ErrorAction.UNDO_WIDGET_RESET else ErrorAction.NONE,
+                isError = false
+            )
+        )
+    }
+
+    fun undoWidgetPreferencesReset() {
+        val previous = previousPreferencesBeforeReset ?: return
+        previousPreferencesBeforeReset = null
+        updateWidgetPreferences(previous)
+    }
+
     fun openAddEventDialog() {
         _modalState.value = _modalState.value.copy(
             editingEvent = null,
@@ -864,6 +890,7 @@ class CalendarViewModel(
         val actionLabel = when (error.action) {
             ErrorAction.RETRY_SYNC -> "Retry"
             ErrorAction.OPEN_SETTINGS -> "Settings"
+            ErrorAction.UNDO_WIDGET_RESET -> "Undo"
             ErrorAction.NONE -> null
         }
         _uiEvents.tryEmit(

@@ -1,12 +1,12 @@
 # Test Management & Quality Assurance Playbook
 
-This playbook defines the test architecture, quality gates, coverage tracking, and release QA sign-off process for **Agenda Widget**.
+This playbook defines the test architecture, quality gates, coverage tracking, and release QA sign-off process for **d.o.it Agenda Widget**.
 
 ---
 
 ## 1. Testing Philosophy & Pyramid
 
-Agenda Widget enforces a **fast, deterministic, JVM-first testing strategy**:
+d.o.it Agenda Widget enforces a **fast, deterministic, JVM-first testing strategy**:
 
 1. **Tier 1 — Static Safety & Governance Gates (`harness.sh --static-only`)**
    - Verifies required architecture & workflow files exist.

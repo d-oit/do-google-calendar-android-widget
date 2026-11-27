@@ -72,29 +72,71 @@
             android:scaleType="fitXY"
             android:src="@drawable/widget_item_stroke" />
 
-        <LinearLayout
+        <RelativeLayout
             android:id="@+id/widget_item_content"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
             android:padding="8dp">
 
-            <!-- Rounded color strip indicator -->
+            <!-- Rounded color strip indicator aligned to stacked text height -->
             <ImageView
                 android:id="@+id/widget_item_color_bar"
                 android:layout_width="4dp"
-                android:layout_height="32dp"
+                android:layout_height="wrap_content"
+                android:layout_alignBottom="@id/widget_item_text_column"
+                android:layout_alignParentStart="true"
+                android:layout_alignTop="@id/widget_item_text_column"
                 android:contentDescription="@null"
                 android:importantForAccessibility="no"
+                android:minHeight="28dp"
                 android:scaleType="fitXY"
                 android:src="@drawable/widget_color_bar_shape" />
 
-            <LinearLayout
-                android:layout_width="0dp"
+            <RelativeLayout
+                android:id="@+id/widget_item_cue_container"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_alignParentEnd="true"
+                android:layout_alignTop="@id/widget_item_text_column"
+                android:layout_marginStart="6dp"
+                android:visibility="gone">
+
+                <ImageView
+                    android:id="@+id/widget_item_cue_bg"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_alignBottom="@id/widget_item_cue_text"
+                    android:layout_alignEnd="@id/widget_item_cue_text"
+                    android:layout_alignStart="@id/widget_item_cue_text"
+                    android:layout_alignTop="@id/widget_item_cue_text"
+                    android:contentDescription="@null"
+                    android:importantForAccessibility="no"
+                    android:scaleType="fitXY"
+                    android:src="@drawable/widget_chip_fill" />
+
+                <TextView
+                    android:id="@+id/widget_item_cue_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:maxLines="1"
+                    android:paddingBottom="2dp"
+                    android:paddingEnd="6dp"
+                    android:paddingStart="6dp"
+                    android:paddingTop="2dp"
+                    android:text="@string/widget_badge_now"
+                    android:textColor="#1A73E8"
+                    android:textSize="10sp"
+                    android:textStyle="bold" />
+            </RelativeLayout>
+
+            <LinearLayout
+                android:id="@+id/widget_item_text_column"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_alignWithParentIfMissing="true"
                 android:layout_marginStart="8dp"
-                android:layout_weight="1"
+                android:layout_toEndOf="@id/widget_item_color_bar"
+                android:layout_toStartOf="@id/widget_item_cue_container"
                 android:orientation="vertical">
 
                 <TextView
@@ -102,10 +144,21 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:ellipsize="end"
-                    android:maxLines="1"
                     android:text="Event Title"
                     android:textColor="#1F1F1F"
                     android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/widget_item_time"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:text="10:00 AM"
+                    android:textColor="#1A73E8"
+                    android:textSize="12sp"
                     android:textStyle="bold" />
 
                 <TextView
@@ -132,16 +185,6 @@
                     android:textSize="10sp"
                     android:visibility="gone" />
             </LinearLayout>
-
-            <TextView
-                android:id="@+id/widget_item_time"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
-                android:text="10:00 AM"
-                android:textColor="#1A73E8"
-                android:textSize="12sp"
-                android:textStyle="bold" />
-        </LinearLayout>
+        </RelativeLayout>
     </RelativeLayout>
 </LinearLayout>

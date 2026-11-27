@@ -7,6 +7,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.glance.appwidget.testing.unit.runGlanceAppWidgetUnitTest
@@ -32,6 +33,7 @@ import com.example.util.LogSanitizer
 import com.example.widget.CalendarAgendaWidgetProvider
 import com.example.widget.CalendarGlanceWidgetContent
 import com.example.widget.WidgetThemeHelper
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -105,11 +107,13 @@ class HardeningI18nAndUpdateTest {
             db.eventDao().insertEvent(verifiedEvent)
         }
         try {
-            val resolved = CalendarAgendaWidgetProvider.resolveVerifiedItemClickIntent(
-                context = context,
-                eventId = "verified_evt_99",
-                eventTitle = "Verified Security Sync"
-            )
+            val resolved = runBlocking(Dispatchers.IO) {
+                CalendarAgendaWidgetProvider.resolveVerifiedItemClickIntent(
+                    context = context,
+                    eventId = "verified_evt_99",
+                    eventTitle = "Verified Security Sync"
+                )
+            }
             assertEquals(Intent.ACTION_VIEW, resolved.action)
             assertEquals("content://com.android.calendar/events/99", resolved.data.toString())
         } finally {
@@ -314,8 +318,8 @@ class HardeningI18nAndUpdateTest {
 
         composeTestRule.waitForIdle()
         composeTestRule.onNodeWithTag("about_version_value").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("about_check_updates_button").performClick()
-        composeTestRule.onNodeWithTag("about_open_release_button").performClick()
+        composeTestRule.onNodeWithTag("about_check_updates_button").performScrollTo().performClick()
+        composeTestRule.onNodeWithTag("about_open_release_button").performScrollTo().performClick()
         assertTrue(checkedUpdates)
         assertNotNull(openedReleaseUrl)
     }

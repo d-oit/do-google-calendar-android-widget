@@ -24,7 +24,7 @@ Maintainers aim to acknowledge reports within 72 hours and provide a coordinated
 
 ## Security & Privacy Architecture
 
-Agenda Widget is built with a defense-in-depth, local-first security model:
+d.o.it Agenda Widget is built with a defense-in-depth, local-first security model:
 
 - **Zero API Keys or Cloud Accounts**: Calendar access runs exclusively through Android's native `CalendarContract` (`READ_CALENDAR`, `WRITE_CALENDAR`).
 - **Private Local Cache**: The Room SQLite database (`calendar_widget_db`) is explicitly excluded from Android Auto Backup (`backup_rules.xml`) and Cloud/Device Transfer (`data_extraction_rules.xml`).

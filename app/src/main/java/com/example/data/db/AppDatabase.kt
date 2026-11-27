@@ -8,7 +8,7 @@ import com.example.data.dao.EventDao
 import com.example.data.model.EventEntity
 
 /**
- * Main Room Database for the Agenda Widget app.
+ * Main Room Database for the d.o.it Agenda Widget app.
  * Persists Google Calendar events for offline viewing on home screen widgets.
  */
 @Database(entities = [EventEntity::class], version = 4, exportSchema = false)

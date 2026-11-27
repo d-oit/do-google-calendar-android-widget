@@ -371,11 +371,16 @@ class CalendarAgendaWidgetProvider : AppWidgetProvider() {
             }
             views.setContentDescription(R.id.widget_refresh_btn, syncTooltip)
 
-            // Theme-matched colors across header, icons, divider, and empty state
+            // Theme-matched colors across header, icons, divider, and smart empty state
             views.setTextColor(R.id.widget_date_title, theme.titleColor)
-            views.setTextColor(R.id.widget_empty_text, theme.subtitleColor)
+            views.setTextColor(R.id.widget_empty_text, theme.titleColor)
             views.setInt(R.id.widget_app_icon, "setColorFilter", theme.accentColor)
+            views.setInt(R.id.widget_empty_icon_bg, "setColorFilter", theme.chipBgColor)
+            views.setInt(R.id.widget_empty_icon_bg, "setImageAlpha", theme.chipBgAlpha)
             views.setInt(R.id.widget_empty_icon, "setColorFilter", theme.accentColor)
+            views.setInt(R.id.widget_empty_add_bg, "setColorFilter", theme.chipBgColor)
+            views.setInt(R.id.widget_empty_add_bg, "setImageAlpha", theme.chipBgAlpha)
+            views.setTextColor(R.id.widget_empty_add_text, theme.accentColor)
             views.setInt(R.id.widget_add_btn_bg, "setColorFilter", theme.chipBgColor)
             views.setInt(R.id.widget_add_btn_bg, "setImageAlpha", theme.chipBgAlpha)
             views.setInt(R.id.widget_add_btn, "setColorFilter", theme.accentColor)
@@ -436,6 +441,8 @@ class CalendarAgendaWidgetProvider : AppWidgetProvider() {
             )
             views.setOnClickPendingIntent(R.id.widget_add_btn_container, addEventPendingIntent)
             views.setOnClickPendingIntent(R.id.widget_add_btn, addEventPendingIntent)
+            views.setOnClickPendingIntent(R.id.widget_empty_add_container, addEventPendingIntent)
+            views.setOnClickPendingIntent(R.id.widget_empty_add_text, addEventPendingIntent)
 
             // Header title/icon click -> open companion app
             val openAppIntent = Intent(context, MainActivity::class.java).apply {

@@ -1,6 +1,6 @@
-# Contributing to Agenda Widget
+# Contributing to d.o.it Agenda Widget
 
-Thank you for contributing to **Agenda Widget**! Please follow these engineering and quality guidelines so every change stays fast, private, accessible, and reliable.
+Thank you for contributing to **d.o.it Agenda Widget**! Please follow these engineering and quality guidelines so every change stays fast, private, accessible, and reliable.
 
 ---
 

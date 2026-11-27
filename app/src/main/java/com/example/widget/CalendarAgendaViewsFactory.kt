@@ -103,36 +103,50 @@ class CalendarAgendaViewsFactory(
         }
         rv.setViewPadding(R.id.widget_item_content, padPx, padPx, padPx, padPx)
 
-        // Title and Density Font Scaling
+        // Title, Line Limit, and Density Font Scaling
         rv.setTextViewText(R.id.widget_item_title, event.title)
         rv.setTextViewTextSize(R.id.widget_item_title, TypedValue.COMPLEX_UNIT_SP, prefs.density.titleSp)
+        rv.setInt(R.id.widget_item_title, "setMaxLines", prefs.titleLineLimit.maxLines)
         rv.setTextColor(R.id.widget_item_title, theme.titleColor)
         rv.setTextColor(R.id.widget_item_location, theme.subtitleColor)
         rv.setTextColor(R.id.widget_item_calendar, theme.subtitleColor)
+        rv.setTextViewTextSize(
+            R.id.widget_item_calendar,
+            TypedValue.COMPLEX_UNIT_SP,
+            (prefs.density.timeSp - 2f).coerceAtLeast(9f)
+        )
+        rv.setTextViewTextSize(
+            R.id.widget_item_location,
+            TypedValue.COMPLEX_UNIT_SP,
+            (prefs.density.timeSp - 1f).coerceAtLeast(9f)
+        )
 
-        // Calendar Name badge
-        if (event.calendarId.isNotBlank()) {
+        // Calendar Name subtitle (controlled by showCalendarName toggle)
+        if (prefs.showCalendarName && event.calendarId.isNotBlank()) {
             rv.setViewVisibility(R.id.widget_item_calendar, View.VISIBLE)
             rv.setTextViewText(R.id.widget_item_calendar, event.calendarId)
         } else {
             rv.setViewVisibility(R.id.widget_item_calendar, View.GONE)
         }
 
-        // Locale- and 12h/24h-aware time formatting
+        // Locale- and 12h/24h-aware time formatting honoring timeDisplayMode
         val timeString = CalendarDateFormatter.formatEventTime(
             startMillis = event.startMillis,
             endMillis = event.endMillis,
             isAllDay = event.isAllDay,
-            context = context
+            context = context,
+            timeDisplayMode = prefs.timeDisplayMode
         )
-        rv.setTextViewText(R.id.widget_item_time, timeString)
-        rv.setTextViewTextSize(R.id.widget_item_time, TypedValue.COMPLEX_UNIT_SP, prefs.density.timeSp)
-
-        val eventColorInt = CalendarColorMapper.parseColorInt(
-            event.colorHex,
-            theme.accentColor
-        )
-        rv.setTextColor(R.id.widget_item_time, eventColorInt)
+        val eventTimeColorInt = WidgetThemeHelper.resolveEventTimeColor(event.colorHex, theme)
+        val eventBarColorInt = WidgetThemeHelper.resolveEventBarColor(event.colorHex, theme)
+        if (timeString.isNotEmpty()) {
+            rv.setViewVisibility(R.id.widget_item_time, View.VISIBLE)
+            rv.setTextViewText(R.id.widget_item_time, timeString)
+            rv.setTextViewTextSize(R.id.widget_item_time, TypedValue.COMPLEX_UNIT_SP, prefs.density.timeSp)
+            rv.setTextColor(R.id.widget_item_time, eventTimeColorInt)
+        } else {
+            rv.setViewVisibility(R.id.widget_item_time, View.GONE)
+        }
 
         // Location / Conference link (filtered at presentation time)
         if (!event.location.isNullOrBlank() && prefs.showLocations) {
@@ -143,7 +157,31 @@ class CalendarAgendaViewsFactory(
         }
 
         // Rounded accent color stripe
-        rv.setInt(R.id.widget_item_color_bar, "setColorFilter", eventColorInt)
+        rv.setInt(R.id.widget_item_color_bar, "setColorFilter", eventBarColorInt)
+
+        // Subtle live timing cue badge (NOW / In Xm)
+        val timingCue = CalendarDateFormatter.formatEventTimingCue(
+            context = context,
+            startMillis = event.startMillis,
+            endMillis = event.endMillis,
+            isAllDay = event.isAllDay
+        )
+        if (timingCue != null) {
+            rv.setViewVisibility(R.id.widget_item_cue_container, View.VISIBLE)
+            rv.setTextViewText(R.id.widget_item_cue_text, timingCue.label)
+            if (timingCue.isLive) {
+                rv.setInt(R.id.widget_item_cue_bg, "setColorFilter", theme.accentColor)
+                rv.setInt(R.id.widget_item_cue_bg, "setImageAlpha", 255)
+                val liveTextColor = if (theme.isDark) 0xFF0A192F.toInt() else 0xFFFFFFFF.toInt()
+                rv.setTextColor(R.id.widget_item_cue_text, liveTextColor)
+            } else {
+                rv.setInt(R.id.widget_item_cue_bg, "setColorFilter", theme.chipBgColor)
+                rv.setInt(R.id.widget_item_cue_bg, "setImageAlpha", theme.chipBgAlpha)
+                rv.setTextColor(R.id.widget_item_cue_text, theme.accentColor)
+            }
+        } else {
+            rv.setViewVisibility(R.id.widget_item_cue_container, View.GONE)
+        }
 
         // Fill-in Intent carries only event ID & metadata; receiver verifies target link in Room
         val fillInIntent = Intent().apply {

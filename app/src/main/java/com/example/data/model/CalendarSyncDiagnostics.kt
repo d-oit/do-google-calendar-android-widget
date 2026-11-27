@@ -71,7 +71,7 @@ data class CalendarSyncDiagnostics(
     ): String {
         val formatter = SimpleDateFormat("yyyy-MM-dd HH:mm:ss z", Locale.US)
         val sb = StringBuilder()
-        sb.appendLine("=== Agenda Widget Sync Diagnostics ===")
+        sb.appendLine("=== d.o.it Agenda Widget Sync Diagnostics ===")
         sb.appendLine("Checked At: ${formatter.format(Date(checkedAtMillis))}")
         sb.appendLine("Timezone: $deviceTimeZoneId")
         sb.appendLine("Root Cause: $rootCause")

@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Agenda Widget</string>
+    <string name="app_name">d.o.it Agenda Widget</string>
     <string name="classic_widget_label">Agenda Calendrier</string>
     <string name="widget_description">Affiche votre agenda Google Calendar à venir avec actualisation rapide et ouverture directe.</string>
     <string name="title_google_calendar">Google Calendar</string>
@@ -47,7 +47,7 @@
 
     <!-- Permission card -->
     <string name="permission_card_title">Connectez votre calendrier</string>
-    <string name="permission_card_body">Agenda Widget lit directement votre fournisseur de calendrier Android, sans serveur cloud ni clé API. Autorisez l\'accès au calendrier pour synchroniser vos événements Google Calendar.</string>
+    <string name="permission_card_body">d.o.it Agenda Widget lit directement votre fournisseur de calendrier Android, sans serveur cloud ni clé API. Autorisez l\'accès au calendrier pour synchroniser vos événements Google Calendar.</string>
     <string name="permission_card_action_grant">Autoriser l\'accès au calendrier</string>
     <string name="permission_card_action_settings">Ouvrir les paramètres</string>
     <string name="permission_card_privacy_note">Vos données de calendrier restent sur votre appareil.</string>
@@ -111,6 +111,15 @@
     <string name="widget_customizer_subtitle">Personnalisez l\'opacité, le thème et les calendriers</string>
     <string name="widget_customizer_custom_filter">Filtre personnalisé</string>
     <string name="widget_customizer_display_toggles">Options d\'affichage</string>
+    <string name="widget_customizer_title_lines_label">Lignes du titre</string>
+    <string name="widget_title_lines_full">Complet</string>
+    <string name="widget_title_lines_two">2 lignes</string>
+    <string name="widget_title_lines_one">1 ligne</string>
+    <string name="widget_customizer_time_display_label">Affichage de l\'heure</string>
+    <string name="widget_time_display_range">Plage complète</string>
+    <string name="widget_time_display_start_only">Début seul</string>
+    <string name="widget_time_display_hide">Masquer</string>
+    <string name="widget_customizer_show_calendar_name">Afficher le nom du calendrier</string>
     <string name="widget_customizer_show_locations">Afficher les lieux et liens vidéo</string>
     <string name="widget_customizer_show_day_headers">Afficher les en-têtes de date</string>
     <string name="widget_customizer_show_past">Afficher les événements passés d\'aujourd\'hui</string>
@@ -131,7 +140,7 @@
     <string name="pin_chooser_classic_desc">Liste défilante complète avec opacité personnalisée, thèmes et accès direct.</string>
 
     <!-- Widget Strings -->
-    <string name="widget_no_events">Aucun événement à venir</string>
+    <string name="widget_no_events">Agenda libre pour le reste de la journée</string>
     <string name="widget_default_title">Agenda à venir</string>
     <string name="widget_new_event_desc">Nouvel événement</string>
     <string name="widget_refresh_desc">Actualiser l\'agenda</string>
@@ -204,8 +213,8 @@
     <string name="diagnostics_calendar_events_count">%1$d à venir</string>
 
     <!-- About & Updates Bottom Sheet -->
-    <string name="about_open_desc">À propos d\'Agenda Widget et mises à jour</string>
-    <string name="about_sheet_title">À propos d\'Agenda Widget</string>
+    <string name="about_open_desc">À propos de d.o.it Agenda Widget et mises à jour</string>
+    <string name="about_sheet_title">À propos de d.o.it Agenda Widget</string>
     <string name="about_sheet_subtitle">Compagnon natif de calendrier et widgets d\'écran d\'accueil</string>
     <string name="about_version_label">Version</string>
     <string name="about_build_label">Code de build</string>
@@ -225,7 +234,7 @@
     <string name="about_action_open_release">Voir la version sur GitHub</string>
     <string name="about_action_open_diagnostics">Ouvrir le diagnostic de synchro</string>
     <string name="about_action_app_language">Langue de l\'application</string>
-    <string name="about_language_hint">Modifiez la langue dans Paramètres Android → Applications → Agenda Widget → Langue.</string>
+    <string name="about_language_hint">Modifiez la langue dans Paramètres Android → Applications → d.o.it Agenda Widget → Langue.</string>
 
     <!-- Additional localized dialog, empty state, and permission copy -->
     <string name="action_ok">OK</string>
@@ -254,4 +263,25 @@
     <string name="status_local_calendar_active">Calendrier local actif (ajoutez un compte Google dans les Paramètres Android)</string>
     <string name="diagnostics_logs_show">Afficher</string>
     <string name="diagnostics_logs_hide">Masquer</string>
+
+    <!-- Material 3 Overhaul: Top Bar Overflow, Wallpaper Preview, Customizer Sections & Widget Cues -->
+    <string name="topbar_more_options_desc">Plus d\'options</string>
+    <string name="menu_reset_widget_defaults">Réinitialiser le widget</string>
+    <string name="menu_sync_diagnostics">Diagnostic de synchronisation</string>
+    <string name="menu_about_updates">À propos et mises à jour</string>
+    <string name="msg_widget_reset_defaults">Paramètres du widget réinitialisés.</string>
+    <string name="action_undo">Annuler</string>
+    <string name="widget_wallpaper_label">Fond d\'écran</string>
+    <string name="widget_wallpaper_dark">Sombre</string>
+    <string name="widget_wallpaper_light">Clair</string>
+    <string name="widget_wallpaper_vibrant">Vibrant</string>
+    <string name="widget_customizer_section_appearance">Apparence</string>
+    <string name="widget_customizer_section_typography">Typographie et mise en page</string>
+    <string name="widget_customizer_section_schedule">Agenda et calendriers</string>
+    <string name="widget_customizer_section_display">Options d\'affichage</string>
+    <string name="widget_customizer_pin_compact">Ajouter à l\'accueil</string>
+    <string name="widget_empty_action_add">Ajouter</string>
+    <string name="widget_empty_action_calendar">Ouvrir Calendrier</string>
+    <string name="widget_badge_now">EN COURS</string>
+    <string name="widget_badge_in_minutes">Dans %1$dm</string>
 </resources>

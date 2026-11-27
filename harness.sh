@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# harness.sh: Automated Verification Harness for Google Calendar Agenda Widget
+# harness.sh: Automated Verification Harness for d.o.it Agenda Widget
 # ==============================================================================
 
 set -e
@@ -17,7 +17,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 echo -e "${BLUE}======================================================${NC}"
-echo -e "${BLUE}  Starting Agenda Widget Verification Harness         ${NC}"
+echo -e "${BLUE}  Starting d.o.it Agenda Widget Verification Harness  ${NC}"
 echo -e "${BLUE}======================================================${NC}"
 
 # 1. Check workspace prerequisites

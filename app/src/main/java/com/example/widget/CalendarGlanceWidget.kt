@@ -3,7 +3,6 @@ package com.example.widget
 import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
-import android.graphics.Color as AndroidColor
 import android.widget.RemoteViews
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
@@ -36,11 +35,11 @@ import androidx.glance.appwidget.lazy.items
 import androidx.glance.appwidget.provideContent
 import androidx.glance.appwidget.state.updateAppWidgetState
 import androidx.glance.background
+import androidx.glance.color.ColorProvider as DayNightColorProvider
 import androidx.glance.currentState
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
 import androidx.glance.layout.Column
-import androidx.glance.layout.ContentScale
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
 import androidx.glance.layout.fillMaxSize
@@ -49,6 +48,7 @@ import androidx.glance.layout.height
 import androidx.glance.layout.padding
 import androidx.glance.layout.size
 import androidx.glance.layout.width
+import androidx.glance.material3.ColorProviders
 import androidx.glance.semantics.semantics
 import androidx.glance.semantics.testTag
 import androidx.glance.state.GlanceStateDefinition
@@ -91,7 +91,16 @@ class CalendarGlanceWidget : GlanceAppWidget() {
             val isSyncing = glancePrefs[KEY_IS_SYNCING] ?: false
             val effectiveLastSyncMillis = maxOf(glanceSyncMillis, snapshot.lastSyncMillis)
 
-            GlanceTheme {
+            val m3Schemes = WidgetThemeHelper.resolveMaterial3ColorSchemes(
+                context = context.applicationContext,
+                colorTheme = snapshot.preferences.colorTheme
+            )
+            GlanceTheme(
+                colors = ColorProviders(
+                    light = m3Schemes.light,
+                    dark = m3Schemes.dark
+                )
+            ) {
                 CalendarGlanceWidgetContent(
                     events = snapshot.events,
                     prefs = snapshot.preferences,
@@ -178,13 +187,47 @@ fun CalendarGlanceWidgetContent(
     val size: DpSize = LocalSize.current
     val isNarrow = size.width in 1.dp..190.dp
 
-    val rootBg = Color(theme.rootBgColor).copy(alpha = theme.rootAlpha / 255f)
-    val itemBg = Color(theme.itemBgColor).copy(alpha = theme.itemAlpha / 255f)
-    val accent = Color(theme.accentColor)
-    val chipBg = Color(theme.chipBgColor).copy(alpha = theme.chipBgAlpha / 255f)
-    val titleColor = Color(theme.titleColor)
-    val subtitleColor = Color(theme.subtitleColor)
-    val dividerColor = Color(theme.dividerColor)
+    // Resolve both Material 3 light and dark palettes so Android's launcher can switch
+    // seamlessly between Light and Dark mode via DayNight ColorProviders.
+    val lightTheme = if (!theme.isDark) {
+        theme
+    } else {
+        WidgetThemeHelper.resolveColors(context, prefs, forceDark = false)
+    }
+    val darkTheme = if (theme.isDark) {
+        theme
+    } else {
+        WidgetThemeHelper.resolveColors(context, prefs, forceDark = true)
+    }
+
+    val rootBgProvider = DayNightColorProvider(
+        day = Color(lightTheme.rootBgColor).copy(alpha = lightTheme.rootAlpha / 255f),
+        night = Color(darkTheme.rootBgColor).copy(alpha = darkTheme.rootAlpha / 255f)
+    )
+    val itemBgProvider = DayNightColorProvider(
+        day = Color(lightTheme.itemBgColor).copy(alpha = lightTheme.itemAlpha / 255f),
+        night = Color(darkTheme.itemBgColor).copy(alpha = darkTheme.itemAlpha / 255f)
+    )
+    val accentProvider = DayNightColorProvider(
+        day = Color(lightTheme.accentColor),
+        night = Color(darkTheme.accentColor)
+    )
+    val chipBgProvider = DayNightColorProvider(
+        day = Color(lightTheme.chipBgColor).copy(alpha = lightTheme.chipBgAlpha / 255f),
+        night = Color(darkTheme.chipBgColor).copy(alpha = darkTheme.chipBgAlpha / 255f)
+    )
+    val titleColorProvider = DayNightColorProvider(
+        day = Color(lightTheme.titleColor),
+        night = Color(darkTheme.titleColor)
+    )
+    val subtitleColorProvider = DayNightColorProvider(
+        day = Color(lightTheme.subtitleColor),
+        night = Color(darkTheme.subtitleColor)
+    )
+    val dividerColorProvider = DayNightColorProvider(
+        day = Color(lightTheme.dividerColor),
+        night = Color(darkTheme.dividerColor)
+    )
 
     val dateTitle = CalendarDateFormatter.formatWidgetHeaderDate(isNarrow = isNarrow)
         .ifBlank { context.getString(R.string.widget_default_title) }
@@ -200,7 +243,7 @@ fun CalendarGlanceWidgetContent(
     Column(
         modifier = GlanceModifier
             .fillMaxSize()
-            .background(ColorProvider(rootBg))
+            .background(rootBgProvider)
             .cornerRadius(20.dp)
             .padding(12.dp)
             .semantics { testTag = "glance_widget_root" }
@@ -216,7 +259,7 @@ fun CalendarGlanceWidgetContent(
                 Image(
                     provider = ImageProvider(R.drawable.ic_widget_calendar),
                     contentDescription = context.getString(R.string.title_google_calendar),
-                    colorFilter = ColorFilter.tint(ColorProvider(accent)),
+                    colorFilter = ColorFilter.tint(accentProvider),
                     modifier = GlanceModifier
                         .size(20.dp)
                         .clickable(actionStartActivity(openAppIntent))
@@ -232,7 +275,7 @@ fun CalendarGlanceWidgetContent(
                 Text(
                     text = dateTitle,
                     style = TextStyle(
-                        color = ColorProvider(titleColor),
+                        color = titleColorProvider,
                         fontSize = prefs.density.titleSp.sp,
                         fontWeight = FontWeight.Bold
                     ),
@@ -249,10 +292,13 @@ fun CalendarGlanceWidgetContent(
                         compact = isNarrow
                     )
                 }
-                val syncDotColor = when {
-                    isSyncing -> accent
-                    lastSyncMillis > 0L -> if (theme.isDark) Color(0xFF81C995) else Color(0xFF137333)
-                    else -> subtitleColor
+                val syncDotProvider = when {
+                    isSyncing -> accentProvider
+                    lastSyncMillis > 0L -> DayNightColorProvider(
+                        day = Color(0xFF137333),
+                        night = Color(0xFF81C995)
+                    )
+                    else -> subtitleColorProvider
                 }
                 Row(
                     modifier = GlanceModifier
@@ -264,13 +310,13 @@ fun CalendarGlanceWidgetContent(
                         modifier = GlanceModifier
                             .size(6.dp)
                             .cornerRadius(3.dp)
-                            .background(ColorProvider(syncDotColor))
+                            .background(syncDotProvider)
                     ) {}
                     Spacer(modifier = GlanceModifier.width(4.dp))
                     Text(
                         text = syncStatusText,
                         style = TextStyle(
-                            color = ColorProvider(subtitleColor),
+                            color = subtitleColorProvider,
                             fontSize = (prefs.density.timeSp - 2f).coerceIn(9f, 11f).sp
                         ),
                         maxLines = 1,
@@ -290,14 +336,14 @@ fun CalendarGlanceWidgetContent(
                 Box(
                     modifier = GlanceModifier
                         .size(36.dp)
-                        .background(ColorProvider(chipBg))
+                        .background(chipBgProvider)
                         .cornerRadius(18.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Image(
                         provider = ImageProvider(R.drawable.ic_widget_add),
                         contentDescription = context.getString(R.string.widget_new_event_desc),
-                        colorFilter = ColorFilter.tint(ColorProvider(accent)),
+                        colorFilter = ColorFilter.tint(accentProvider),
                         modifier = GlanceModifier.size(18.dp)
                     )
                 }
@@ -314,14 +360,14 @@ fun CalendarGlanceWidgetContent(
                 Box(
                     modifier = GlanceModifier
                         .size(36.dp)
-                        .background(ColorProvider(chipBg))
+                        .background(chipBgProvider)
                         .cornerRadius(18.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Image(
                         provider = ImageProvider(R.drawable.ic_widget_refresh),
                         contentDescription = context.getString(R.string.widget_refresh_desc),
-                        colorFilter = ColorFilter.tint(ColorProvider(accent)),
+                        colorFilter = ColorFilter.tint(accentProvider),
                         modifier = GlanceModifier.size(18.dp)
                     )
                 }
@@ -333,7 +379,7 @@ fun CalendarGlanceWidgetContent(
             modifier = GlanceModifier
                 .fillMaxWidth()
                 .height(1.dp)
-                .background(ColorProvider(dividerColor))
+                .background(dividerColorProvider)
         )
         Spacer(modifier = GlanceModifier.height(8.dp))
 
@@ -357,34 +403,63 @@ fun CalendarGlanceWidgetContent(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                if (size.height >= 160.dp) {
-                    Image(
-                        provider = ImageProvider(R.drawable.img_empty_calendar),
-                        contentDescription = context.getString(R.string.empty_calendar_illustration_desc),
-                        contentScale = ContentScale.Crop,
-                        modifier = GlanceModifier
-                            .width(96.dp)
-                            .height(72.dp)
-                            .cornerRadius(14.dp)
-                            .semantics { testTag = "glance_empty_illustration" }
-                    )
-                } else {
+                Box(
+                    modifier = GlanceModifier
+                        .size(44.dp)
+                        .cornerRadius(22.dp)
+                        .background(chipBgProvider)
+                        .semantics { testTag = "glance_empty_illustration" },
+                    contentAlignment = Alignment.Center
+                ) {
                     Image(
                         provider = ImageProvider(R.drawable.ic_widget_calendar),
-                        contentDescription = null,
-                        colorFilter = ColorFilter.tint(ColorProvider(accent)),
-                        modifier = GlanceModifier.size(28.dp)
+                        contentDescription = context.getString(R.string.widget_no_events),
+                        colorFilter = ColorFilter.tint(accentProvider),
+                        modifier = GlanceModifier.size(22.dp)
                     )
                 }
-                Spacer(modifier = GlanceModifier.height(6.dp))
+                Spacer(modifier = GlanceModifier.height(8.dp))
                 Text(
                     text = emptyMessage,
                     style = TextStyle(
-                        color = ColorProvider(subtitleColor),
-                        fontSize = prefs.density.timeSp.sp
+                        color = titleColorProvider,
+                        fontSize = (prefs.density.titleSp - 1f).coerceAtLeast(11f).sp,
+                        fontWeight = FontWeight.Medium
                     ),
-                    modifier = GlanceModifier.semantics { testTag = "glance_empty_text" }
+                    maxLines = 2,
+                    modifier = GlanceModifier
+                        .padding(horizontal = 8.dp)
+                        .semantics { testTag = "glance_empty_text" }
                 )
+                if (hasPermission && size.height >= 145.dp) {
+                    Spacer(modifier = GlanceModifier.height(8.dp))
+                    Row(
+                        modifier = GlanceModifier
+                            .background(chipBgProvider)
+                            .cornerRadius(16.dp)
+                            .padding(horizontal = 12.dp, vertical = 7.dp)
+                            .clickable(actionStartActivity(addEventIntent))
+                            .semantics { testTag = "glance_empty_add_action" },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Image(
+                            provider = ImageProvider(R.drawable.ic_widget_add),
+                            contentDescription = null,
+                            colorFilter = ColorFilter.tint(accentProvider),
+                            modifier = GlanceModifier.size(14.dp)
+                        )
+                        Spacer(modifier = GlanceModifier.width(4.dp))
+                        Text(
+                            text = context.getString(R.string.widget_empty_action_add),
+                            style = TextStyle(
+                                color = accentProvider,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            ),
+                            maxLines = 1
+                        )
+                    }
+                }
             }
         } else {
             LazyColumn(
@@ -396,10 +471,14 @@ fun CalendarGlanceWidgetContent(
                     GlanceAgendaItemRow(
                         event = event,
                         prefs = prefs,
-                        itemBg = itemBg,
-                        accentColor = accent,
-                        titleColor = titleColor,
-                        subtitleColor = subtitleColor
+                        lightTheme = lightTheme,
+                        darkTheme = darkTheme,
+                        itemBgProvider = itemBgProvider,
+                        chipBgProvider = chipBgProvider,
+                        accentProvider = accentProvider,
+                        titleColorProvider = titleColorProvider,
+                        subtitleColorProvider = subtitleColorProvider,
+                        isNarrow = isNarrow
                     )
                 }
             }
@@ -411,17 +490,34 @@ fun CalendarGlanceWidgetContent(
 private fun GlanceAgendaItemRow(
     event: EventEntity,
     prefs: WidgetPreferences,
-    itemBg: Color,
-    accentColor: Color,
-    titleColor: Color,
-    subtitleColor: Color
+    lightTheme: ResolvedWidgetTheme,
+    darkTheme: ResolvedWidgetTheme,
+    itemBgProvider: ColorProvider,
+    chipBgProvider: ColorProvider,
+    accentProvider: ColorProvider,
+    titleColorProvider: ColorProvider,
+    subtitleColorProvider: ColorProvider,
+    isNarrow: Boolean
 ) {
     val context = LocalContext.current
-    val eventColorInt = try {
-        CalendarColorMapper.parseColorInt(event.colorHex)
-    } catch (_: Exception) {
-        AndroidColor.parseColor("#1A73E8")
-    }
+    val eventBarProvider = DayNightColorProvider(
+        day = Color(WidgetThemeHelper.resolveEventBarColor(event.colorHex, lightTheme)),
+        night = Color(WidgetThemeHelper.resolveEventBarColor(event.colorHex, darkTheme))
+    )
+    val eventTimeProvider = DayNightColorProvider(
+        day = Color(WidgetThemeHelper.resolveEventTimeColor(event.colorHex, lightTheme)),
+        night = Color(WidgetThemeHelper.resolveEventTimeColor(event.colorHex, darkTheme))
+    )
+    val liveCueTextProvider = DayNightColorProvider(
+        day = Color.White,
+        night = Color(0xFF0A192F)
+    )
+    val timingCue = CalendarDateFormatter.formatEventTimingCue(
+        context = context,
+        startMillis = event.startMillis,
+        endMillis = event.endMillis,
+        isAllDay = event.isAllDay
+    )
     val openEventIntent = Intent(context, MainActivity::class.java).apply {
         flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         putExtra(CalendarAgendaWidgetProvider.EXTRA_EVENT_ID, event.id)
@@ -438,7 +534,7 @@ private fun GlanceAgendaItemRow(
             Text(
                 text = localizedHeader,
                 style = TextStyle(
-                    color = ColorProvider(accentColor),
+                    color = accentProvider,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold
                 ),
@@ -449,17 +545,18 @@ private fun GlanceAgendaItemRow(
         Row(
             modifier = GlanceModifier
                 .fillMaxWidth()
-                .background(ColorProvider(itemBg))
+                .background(itemBgProvider)
                 .cornerRadius(12.dp)
                 .padding(horizontal = 10.dp, vertical = 8.dp)
                 .clickable(actionStartActivity(openEventIntent)),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.Top
         ) {
             Box(
                 modifier = GlanceModifier
+                    .padding(top = 2.dp)
                     .width(4.dp)
                     .height(28.dp)
-                    .background(ColorProvider(Color(eventColorInt)))
+                    .background(eventBarProvider)
                     .cornerRadius(2.dp)
             ) {}
 
@@ -469,32 +566,86 @@ private fun GlanceAgendaItemRow(
                 Text(
                     text = event.title,
                     style = TextStyle(
-                        color = ColorProvider(titleColor),
+                        color = titleColorProvider,
                         fontSize = prefs.density.titleSp.sp,
                         fontWeight = FontWeight.Medium
                     ),
-                    maxLines = 1
+                    maxLines = prefs.titleLineLimit.maxLines,
+                    modifier = GlanceModifier
+                        .fillMaxWidth()
+                        .semantics { testTag = "glance_event_title_${event.id}" }
                 )
 
                 val timeStr = CalendarDateFormatter.formatEventTime(
                     startMillis = event.startMillis,
                     endMillis = event.endMillis,
                     isAllDay = event.isAllDay,
-                    context = context
+                    context = context,
+                    timeDisplayMode = prefs.timeDisplayMode
                 )
-                val subtitle = if (prefs.showLocations && !event.location.isNullOrBlank()) {
-                    "$timeStr • ${event.location}"
-                } else {
-                    timeStr
+                if (timeStr.isNotEmpty()) {
+                    Text(
+                        text = timeStr,
+                        style = TextStyle(
+                            color = eventTimeProvider,
+                            fontSize = prefs.density.timeSp.sp,
+                            fontWeight = FontWeight.Bold
+                        ),
+                        maxLines = 1,
+                        modifier = GlanceModifier
+                            .padding(top = 2.dp)
+                            .semantics { testTag = "glance_event_time_${event.id}" }
+                    )
                 }
-                Text(
-                    text = subtitle,
-                    style = TextStyle(
-                        color = ColorProvider(subtitleColor),
-                        fontSize = prefs.density.timeSp.sp
-                    ),
-                    maxLines = 1
-                )
+
+                if (prefs.showCalendarName && event.calendarId.isNotBlank()) {
+                    Text(
+                        text = event.calendarId,
+                        style = TextStyle(
+                            color = subtitleColorProvider,
+                            fontSize = (prefs.density.timeSp - 2f).coerceAtLeast(9f).sp
+                        ),
+                        maxLines = 1,
+                        modifier = GlanceModifier
+                            .padding(top = 1.dp)
+                            .semantics { testTag = "glance_event_calendar_${event.id}" }
+                    )
+                }
+
+                if (prefs.showLocations && !event.location.isNullOrBlank()) {
+                    Text(
+                        text = event.location,
+                        style = TextStyle(
+                            color = subtitleColorProvider,
+                            fontSize = (prefs.density.timeSp - 1f).coerceAtLeast(9f).sp
+                        ),
+                        maxLines = 1,
+                        modifier = GlanceModifier
+                            .padding(top = 1.dp)
+                            .semantics { testTag = "glance_event_location_${event.id}" }
+                    )
+                }
+            }
+
+            if (timingCue != null && !isNarrow) {
+                Spacer(modifier = GlanceModifier.width(6.dp))
+                Box(
+                    modifier = GlanceModifier
+                        .background(if (timingCue.isLive) accentProvider else chipBgProvider)
+                        .cornerRadius(8.dp)
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                        .semantics { testTag = "glance_event_cue_${event.id}" }
+                ) {
+                    Text(
+                        text = timingCue.label,
+                        style = TextStyle(
+                            color = if (timingCue.isLive) liveCueTextProvider else accentProvider,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold
+                        ),
+                        maxLines = 1
+                    )
+                }
             }
         }
     }

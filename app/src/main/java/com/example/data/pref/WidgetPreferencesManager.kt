@@ -57,6 +57,35 @@ enum class WidgetDensity(
     }
 }
 
+enum class WidgetTitleLineLimit(
+    val id: String,
+    val maxLines: Int,
+    @StringRes val labelResId: Int
+) {
+    FULL("full", Int.MAX_VALUE, R.string.widget_title_lines_full),
+    TWO_LINES("two_lines", 2, R.string.widget_title_lines_two),
+    ONE_LINE("one_line", 1, R.string.widget_title_lines_one);
+
+    companion object {
+        fun fromId(id: String): WidgetTitleLineLimit =
+            values().firstOrNull { it.id == id } ?: FULL
+    }
+}
+
+enum class WidgetTimeDisplayMode(
+    val id: String,
+    @StringRes val labelResId: Int
+) {
+    FULL_RANGE("full_range", R.string.widget_time_display_range),
+    START_ONLY("start_only", R.string.widget_time_display_start_only),
+    HIDE("hide", R.string.widget_time_display_hide);
+
+    companion object {
+        fun fromId(id: String): WidgetTimeDisplayMode =
+            values().firstOrNull { it.id == id } ?: FULL_RANGE
+    }
+}
+
 data class WidgetPreferences(
     val opacityPercent: Int = 85,
     val colorTheme: WidgetColorTheme = WidgetColorTheme.DYNAMIC,
@@ -66,7 +95,10 @@ data class WidgetPreferences(
     val isAllCalendarsSelected: Boolean = true,
     val showLocations: Boolean = true,
     val showDayHeaders: Boolean = true,
-    val showPastEvents: Boolean = false
+    val showPastEvents: Boolean = false,
+    val titleLineLimit: WidgetTitleLineLimit = WidgetTitleLineLimit.FULL,
+    val timeDisplayMode: WidgetTimeDisplayMode = WidgetTimeDisplayMode.FULL_RANGE,
+    val showCalendarName: Boolean = true
 )
 
 class WidgetPreferencesManager(private val context: Context) {
@@ -112,11 +144,14 @@ class WidgetPreferencesManager(private val context: Context) {
             putBoolean(KEY_SHOW_LOCATIONS, newPrefs.showLocations)
             putBoolean(KEY_SHOW_DAY_HEADERS, newPrefs.showDayHeaders)
             putBoolean(KEY_SHOW_PAST_EVENTS, newPrefs.showPastEvents)
+            putString(KEY_TITLE_LINE_LIMIT, newPrefs.titleLineLimit.id)
+            putString(KEY_TIME_DISPLAY_MODE, newPrefs.timeDisplayMode.id)
+            putBoolean(KEY_SHOW_CALENDAR_NAME, newPrefs.showCalendarName)
             apply()
         }
         AppLogger.d(
             AppLogger.TAG_PREFS,
-            "Updated widget prefs: opacity=${newPrefs.opacityPercent}%, theme=${newPrefs.colorTheme.id}, horizon=${newPrefs.daysHorizon}d"
+            "Updated widget prefs: opacity=${newPrefs.opacityPercent}%, theme=${newPrefs.colorTheme.id}, horizon=${newPrefs.daysHorizon}d, titleLines=${newPrefs.titleLineLimit.id}, timeMode=${newPrefs.timeDisplayMode.id}"
         )
         notifyWidgetsChanged(debounced = true)
     }
@@ -132,6 +167,9 @@ class WidgetPreferencesManager(private val context: Context) {
         val showLoc = prefs.getBoolean(KEY_SHOW_LOCATIONS, true)
         val showHeaders = prefs.getBoolean(KEY_SHOW_DAY_HEADERS, true)
         val showPast = prefs.getBoolean(KEY_SHOW_PAST_EVENTS, false)
+        val titleLineLimitId = prefs.getString(KEY_TITLE_LINE_LIMIT, WidgetTitleLineLimit.FULL.id) ?: WidgetTitleLineLimit.FULL.id
+        val timeDisplayModeId = prefs.getString(KEY_TIME_DISPLAY_MODE, WidgetTimeDisplayMode.FULL_RANGE.id) ?: WidgetTimeDisplayMode.FULL_RANGE.id
+        val showCalName = prefs.getBoolean(KEY_SHOW_CALENDAR_NAME, true)
 
         return WidgetPreferences(
             opacityPercent = opacity,
@@ -142,7 +180,10 @@ class WidgetPreferencesManager(private val context: Context) {
             isAllCalendarsSelected = allCalendars,
             showLocations = showLoc,
             showDayHeaders = showHeaders,
-            showPastEvents = showPast
+            showPastEvents = showPast,
+            titleLineLimit = WidgetTitleLineLimit.fromId(titleLineLimitId),
+            timeDisplayMode = WidgetTimeDisplayMode.fromId(timeDisplayModeId),
+            showCalendarName = showCalName
         )
     }
 
@@ -212,6 +253,9 @@ class WidgetPreferencesManager(private val context: Context) {
         private const val KEY_SHOW_LOCATIONS = "pref_show_locations"
         private const val KEY_SHOW_DAY_HEADERS = "pref_show_day_headers"
         private const val KEY_SHOW_PAST_EVENTS = "pref_show_past_events"
+        private const val KEY_TITLE_LINE_LIMIT = "pref_title_line_limit"
+        private const val KEY_TIME_DISPLAY_MODE = "pref_time_display_mode"
+        private const val KEY_SHOW_CALENDAR_NAME = "pref_show_calendar_name"
         private const val KEY_LAST_SUCCESSFUL_SYNC_MILLIS = "pref_last_successful_sync_millis"
 
         @Volatile

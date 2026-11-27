@@ -1,6 +1,6 @@
-# Agenda Widget
+# d.o.it Agenda Widget
 
-**Agenda Widget** is a native Android companion app and home screen widget suite for Google Calendar built with **Kotlin**, **Jetpack Compose**, **Material Design 3**, **Room**, **WorkManager**, and **Jetpack Glance**.
+**d.o.it Agenda Widget** is a native Android companion app and home screen widget suite for Google Calendar built with **Kotlin**, **Jetpack Compose**, **Material Design 3**, **Room**, **WorkManager**, and **Jetpack Glance**.
 
 It connects directly to Android's built-in `CalendarContract` ContentProvider — **zero API keys, zero custom OAuth backends, zero cloud telemetry, and zero mockup data**.
 

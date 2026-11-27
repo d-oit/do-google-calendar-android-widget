@@ -7,7 +7,7 @@ body:
     id: problem
     attributes:
       label: User Problem / Motivation
-      description: What problem does this solve for Agenda Widget users?
+      description: What problem does this solve for d.o.it Agenda Widget users?
     validations:
       required: true
 

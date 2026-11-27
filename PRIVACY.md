@@ -2,7 +2,7 @@
 
 **Last updated**: 2026-11-26
 
-**Agenda Widget** is designed to keep your calendar schedule private and under your direct control.
+**d.o.it Agenda Widget** is designed to keep your calendar schedule private and under your direct control.
 
 ---
 
@@ -22,8 +22,8 @@
 
 ## 3. Network Access & Third Parties
 
-- **No Analytics or Tracking**: Agenda Widget includes zero analytics SDKs, advertising SDKs, crash telemetry uploaders, or third-party trackers.
-- **No Calendar Data Leaves Your Device**: Agenda Widget never transmits your calendar events, account names, or notes to any external server.
+- **No Analytics or Tracking**: d.o.it Agenda Widget includes zero analytics SDKs, advertising SDKs, crash telemetry uploaders, or third-party trackers.
+- **No Calendar Data Leaves Your Device**: d.o.it Agenda Widget never transmits your calendar events, account names, or notes to any external server.
 - **Optional Update Check (`INTERNET`)**: Only when you manually tap **Check for Updates** in the **About** sheet (and only if a repository is configured), the app sends a standard read-only HTTPS GET request to `https://api.github.com` to compare the latest release tag against the installed version. No personal or calendar data is included in this request.
 
 ---

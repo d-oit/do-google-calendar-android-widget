@@ -6,10 +6,13 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -39,6 +42,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.data.model.EventEntity
+import com.example.data.pref.WidgetPreferences
+import com.example.data.pref.WidgetTitleLineLimit
 import com.example.util.CalendarDateFormatter
 import com.example.util.rememberEventColorScheme
 
@@ -53,7 +58,8 @@ fun EventItemCard(
     event: EventEntity,
     onClick: () -> Unit,
     onDelete: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    widgetPreferences: WidgetPreferences = WidgetPreferences()
 ) {
     val context = LocalContext.current
     // Map event color properties from CalendarContract to UI color scheme
@@ -101,14 +107,16 @@ fun EventItemCard(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .height(IntrinsicSize.Min)
                     .padding(14.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.Top
             ) {
                 // Color strip indicator derived from CalendarContract event color
                 Box(
                     modifier = Modifier
                         .width(5.dp)
-                        .height(48.dp)
+                        .fillMaxHeight()
+                        .heightIn(min = 44.dp)
                         .clip(RoundedCornerShape(3.dp))
                         .background(colorScheme.primaryAccent)
                         .testTag("event_color_bar_${event.id}")
@@ -116,30 +124,60 @@ fun EventItemCard(
 
                 Spacer(modifier = Modifier.width(12.dp))
 
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = event.title,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = colorScheme.titleColor,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f)
-                        )
+                val isFullTitle = widgetPreferences.titleLineLimit == WidgetTitleLineLimit.FULL
+                val timeStr = CalendarDateFormatter.formatEventTime(
+                    startMillis = event.startMillis,
+                    endMillis = event.endMillis,
+                    isAllDay = event.isAllDay,
+                    context = context,
+                    timeDisplayMode = widgetPreferences.timeDisplayMode
+                )
 
-                        // Calendar Name Badge Pill with mapped colors
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = event.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = colorScheme.titleColor,
+                        maxLines = widgetPreferences.titleLineLimit.maxLines,
+                        overflow = if (isFullTitle) TextOverflow.Clip else TextOverflow.Ellipsis,
+                        softWrap = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("event_title_${event.id}")
+                    )
+
+                    if (timeStr.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Schedule,
+                                contentDescription = null,
+                                tint = colorScheme.timeIconTint,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Text(
+                                text = timeStr,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = colorScheme.timeText,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.testTag("event_time_${event.id}")
+                            )
+                        }
+                    }
+
+                    if (widgetPreferences.showCalendarName) {
                         val defaultCalName = stringResource(R.string.title_google_calendar)
                         val calName = event.calendarId.ifBlank { defaultCalName }
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
                         Surface(
                             shape = RoundedCornerShape(6.dp),
                             color = colorScheme.badgeBackground,
-                            border = BorderStroke(0.5.dp, colorScheme.badgeBorder)
+                            border = BorderStroke(0.5.dp, colorScheme.badgeBorder),
+                            modifier = Modifier.testTag("event_calendar_badge_${event.id}")
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
@@ -163,34 +201,8 @@ fun EventItemCard(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Schedule,
-                            contentDescription = null,
-                            tint = colorScheme.timeIconTint,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        val timeStr = CalendarDateFormatter.formatEventTime(
-                            startMillis = event.startMillis,
-                            endMillis = event.endMillis,
-                            isAllDay = event.isAllDay,
-                            context = context
-                        )
-                        Text(
-                            text = timeStr,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = colorScheme.timeText,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-
-                    if (!event.location.isNullOrBlank()) {
-                        Spacer(modifier = Modifier.height(2.dp))
+                    if (!event.location.isNullOrBlank() && widgetPreferences.showLocations) {
+                        Spacer(modifier = Modifier.height(4.dp))
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -206,7 +218,8 @@ fun EventItemCard(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = colorScheme.locationIconTint,
                                 maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.testTag("event_location_${event.id}")
                             )
                         }
                     }
